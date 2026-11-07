@@ -13,7 +13,7 @@ func TestParse(t *testing.T) {
 		ok   bool
 	}{
 		"en": {EN, true}, "tr": {TR, true}, "TR": {TR, true}, "tr-TR": {TR, true}, "en_US": {EN, true},
-		" en-GB ": {EN, true}, "de": {"", false}, "": {"", false}, "*": {"", false}, "english": {"", false},
+		" en-GB ": {EN, true}, "de": {DE, true}, "": {"", false}, "*": {"", false}, "english": {"", false},
 	}
 	for in, tc := range cases {
 		got, ok := Parse(in)
@@ -30,10 +30,10 @@ func TestFromAcceptLanguage(t *testing.T) {
 	}{
 		"tr-TR,tr;q=0.9,en-US;q=0.8,en;q=0.7": {TR, true},
 		"en-US,en;q=0.9":                      {EN, true},
-		"de-DE,de;q=0.9,tr;q=0.5,en;q=0.4":    {TR, true},  // first SUPPORTED by preference
+		"de-DE,de;q=0.9,tr;q=0.5,en;q=0.4":    {DE, true},  // German is supported
 		"en;q=0.2, tr;q=0.8":                  {TR, true},  // q-values, not order
 		"tr;q=0":                              {"", false}, // q=0 means "not acceptable"
-		"de, fr":                              {"", false},
+		"de, fr":                              {DE, true},
 		"":                                    {"", false},
 		"*":                                   {"", false},
 	}
@@ -56,7 +56,7 @@ func TestResolvePriority(t *testing.T) {
 		{"user preference next", Inputs{UserPreference: "tr", AcceptLanguage: "en"}, EN, TR},
 		{"accept-language next", Inputs{AcceptLanguage: "tr-TR,tr;q=0.9"}, EN, TR},
 		{"default last", Inputs{}, TR, TR},
-		{"invalid values skipped", Inputs{Explicit: "xx", UserPreference: "de", AcceptLanguage: "fr"}, EN, EN},
+		{"invalid values skipped", Inputs{Explicit: "xx", UserPreference: "xx", AcceptLanguage: "fr"}, EN, EN},
 	}
 	for _, tc := range cases {
 		if got := Resolve(tc.in, tc.def); got != tc.want {

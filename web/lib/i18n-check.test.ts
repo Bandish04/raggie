@@ -45,14 +45,21 @@ describe("messages catalogs", () => {
   const dir = path.join(import.meta.dirname, "..", "messages");
   const read = (l: string) => readFileSync(path.join(dir, `${l}.json`), "utf8");
 
-  for (const locale of ["en", "tr"]) {
+  for (const locale of ["en", "tr","de"]) {
     test(`${locale}.json has no duplicate keys`, () => {
       assert.deepEqual(findDuplicateKeys(read(locale)), []);
     });
   }
 
-  test("tr.json and en.json have the same key paths", () => {
-    const diff = diffKeyPaths(JSON.parse(read("en")), JSON.parse(read("tr")));
-    assert.deepEqual(diff, { onlyInFirst: [], onlyInSecond: [] }, "onlyInFirst = en only, onlyInSecond = tr only");
+  for (const locale of ["tr", "de"]) {
+  test(`${locale}.json and en.json have the same key paths`, () => {
+    const diff = diffKeyPaths(JSON.parse(read("en")), JSON.parse(read(locale)));
+    assert.deepEqual(
+      diff,
+      { onlyInFirst: [], onlyInSecond: [] },
+      `onlyInFirst = en only, onlyInSecond = ${locale} only`,
+    );
   });
+}
+   
 });
