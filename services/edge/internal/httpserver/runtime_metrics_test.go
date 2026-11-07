@@ -135,16 +135,18 @@ func TestMetricsExposeGoRuntimeAndProcessMetrics(t *testing.T) {
 
 // The goroutine gauge is live, not a boot-time snapshot.
 func TestMetricsGoroutinesTrackLiveCount(t *testing.T) {
-	_, before := parseExposition(t, scrapeMetrics(t))
 	stop := make(chan struct{})
 	const extra = 50
 	for range extra {
 		go func() { <-stop }()
 	}
 	defer close(stop)
+	// The parked goroutines are certainly alive at the scrape; earlier ones
+	// (e.g. a previous scrape's handlers) may exit at any time, so a delta
+	// against an earlier sample is not a stable bound.
 	_, after := parseExposition(t, scrapeMetrics(t))
-	if after["go_goroutines"] < before["go_goroutines"]+extra {
-		t.Fatalf("go_goroutines %v -> %v, want +%d", before["go_goroutines"], after["go_goroutines"], extra)
+	if after["go_goroutines"] < extra {
+		t.Fatalf("go_goroutines %v with %d parked goroutines alive", after["go_goroutines"], extra)
 	}
 }
 
