@@ -1,0 +1,71 @@
+#!/usr/bin/env bash
+# SPDX-License-Identifier: Apache-2.0
+# Fake docker for the backup/restore tests: `inspect` (network name) and
+# `run … rclone` emulated on local dirs. Remote store:<bucket> is the object
+# store ($FAKE_BUCKET_DIR), offsite:<path> is an S3 target ($FAKE_S3_DIR);
+# -v HOST:CONTAINER mounts are honoured. Every call is logged to $FAKE_LOG.
+# FAKE_RCLONE_SIZE_FAIL=1 makes `rclone size` fail.
+set -euo pipefail
+printf 'docker %s\n' "$*" >>"$FAKE_LOG"
+case "${1:-}" in
+  inspect) echo "fakeproj_default "; exit 0 ;;
+  run) ;;
+  *) echo "fake docker: unexpected: $*" >&2; exit 1 ;;
+esac
+shift
+mounts=()
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    -v) mounts+=("$2"); shift 2 ;;
+    -e | --network | --name | --user | -w) shift 2 ;;
+    --rm | -i) shift ;;
+    -*) shift ;;
+    *) break ;;
+  esac
+done
+image=$1
+shift
+[[ "$image" == rclone/rclone* ]] || { echo "fake docker: unexpected image $image" >&2; exit 1; }
+path_of() { # remote-or-container path -> host path
+  local p=$1 m
+  case "$p" in
+    store:*) printf '%s/%s' "$FAKE_BUCKET_DIR" "${p#*:}"; return ;;
+    offsite:*) printf '%s/%s' "$FAKE_S3_DIR" "${p#*:}"; return ;;
+  esac
+  local host ctr
+  for m in "${mounts[@]}"; do
+    host=${m%%:*} ctr=${m#*:} ctr=${ctr%%:*} # HOST:CONTAINER[:ro]
+    if [[ "$p" == "$ctr"* ]]; then printf '%s%s' "$host" "${p#"$ctr"}"; return; fi
+  done
+  printf '%s' "$p"
+}
+cmd=$1
+shift
+args=()
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --transfers | --checkers | --stats | --files-from) shift 2 ;;
+    -*) shift ;;
+    *) args+=("$1"); shift ;;
+  esac
+done
+case "$cmd" in
+  size)
+    [[ "${FAKE_RCLONE_SIZE_FAIL:-0}" != 1 ]] || { echo "rclone: size: connection refused" >&2; exit 1; }
+    d="$(path_of "${args[0]}")"
+    n=0 b=0
+    if [[ -d "$d" ]]; then
+      n=$(find "$d" -type f | wc -l | tr -d ' ')
+      b=$( (find "$d" -type f -exec cat {} + 2>/dev/null || true) | wc -c | tr -d ' ')
+    fi
+    printf '{"count":%s,"bytes":%s,"sizeless":0}\n' "$n" "$b"
+    ;;
+  mkdir) mkdir -p "$(path_of "${args[0]}")" ;;
+  copy)
+    s="$(path_of "${args[0]}")" t="$(path_of "${args[1]}")"
+    mkdir -p "$t"
+    [[ ! -d "$s" ]] || (cd "$s" && find . -type f | while IFS= read -r f; do
+      mkdir -p "$t/$(dirname "$f")" && cp "$f" "$t/$f"; done)
+    ;;
+  *) echo "fake rclone: unsupported $cmd" >&2; exit 1 ;;
+esac

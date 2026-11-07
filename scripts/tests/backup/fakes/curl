@@ -1,0 +1,39 @@
+#!/usr/bin/env bash
+# SPDX-License-Identifier: Apache-2.0
+# Fake curl answering the Qdrant API for the backup/restore tests. Logs
+# "METHOD URL api-key=<yes|no>" to $FAKE_LOG; FAKE_COLLECTIONS lists the
+# collections (default raggie_chunks_d1024, "" for none), FAKE_QDRANT_LIST_FAIL=1
+# fails the listing, FAKE_SNAPSHOT_NAME is the name a snapshot POST returns.
+set -euo pipefail
+method=GET url="" out="" key=no
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    -X) method=$2; shift 2 ;;
+    -H)
+      if [[ "$2" == @* ]] && grep -qi '^api-key: .' "${2#@}"; then key=yes; fi
+      [[ "$2" == api-key:* ]] && key=argv
+      shift 2 ;;
+    -o) out=$2; shift 2 ;;
+    -F) method=POST; shift 2 ;;
+    -m | --max-time | -w) shift 2 ;;
+    -*) shift ;;
+    *) url=$1; shift ;;
+  esac
+done
+printf '%s %s api-key=%s\n' "$method" "$url" "$key" >>"$FAKE_LOG"
+path="${url#http://*/}"
+path="${path%%\?*}" # the query string is logged above, not matched
+emit() { if [[ -n "$out" ]]; then printf '%s' "$1" >"$out"; else printf '%s\n' "$1"; fi; }
+case "$method $path" in
+  "GET collections")
+    [[ "${FAKE_QDRANT_LIST_FAIL:-0}" != 1 ]] || { echo "curl: (7) connection refused" >&2; exit 7; }
+    list=""
+    for c in ${FAKE_COLLECTIONS-raggie_chunks_d1024}; do list+="${list:+,}{\"name\":\"$c\"}"; done
+    emit "{\"result\":{\"collections\":[$list]}}" ;;
+  "POST collections/"*"/snapshots") emit "{\"result\":{\"name\":\"${FAKE_SNAPSHOT_NAME:-snap-1.snapshot}\"}}" ;;
+  "GET collections/"*"/snapshots/"*) c="${path#collections/}"; emit "SNAPSHOT-${c%%/*}" ;;
+  "DELETE collections/"*"/snapshots/"*) emit '{"result":true}' ;;
+  "POST collections/"*"/snapshots/upload") emit '{"result":true}' ;;
+  "GET collections/"*) emit '{"result":{"points_count":42}}' ;;
+  *) echo "fake curl: unexpected $method $url" >&2; exit 22 ;;
+esac

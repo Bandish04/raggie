@@ -1,0 +1,66 @@
+{{- define "header" -}}
+# {{.Title}}{{if .DryRun}} — DRY RUN{{end}}
+
+{{if .DryRun}}> **Dry run against the in-process fake stack.** These numbers validate the
+> harness only; they describe no real system and must not be quoted.
+
+{{end -}}
+- **Date:** {{date .Started}} · **Duration:** {{.Duration}}
+- **Command:** `{{.Command}}`
+- **Source:** `{{short .System.GitSHA}}`{{if .System.GitDirty}} (uncommitted changes present){{end}}
+{{- end}}
+
+{{- define "environment"}}
+## Environment
+
+| | |
+|---|---|
+| Host CPU | {{cell .System.CPUModel}} ({{.System.Cores}} cores, {{.System.Arch}}) |
+| Host RAM | {{bytes .System.MemoryBytes}} |
+| OS | {{cell .System.OS}} |
+| Go | {{.System.GoVersion}} |
+{{- with .System.Docker}}
+| Docker engine | {{.ServerVersion}} — {{.NCPU}} CPUs, {{bytes .MemBytes}} available to containers |
+{{- else}}
+| Docker engine | not detected |
+{{- end}}
+
+The load generator and the stack share the host unless stated otherwise, so
+client and server compete for the same CPUs.
+{{- if .StackEnv}}
+
+**Stack settings** (whitelisted, non-secret keys from `{{.StackEnvPath}}`):
+
+| Setting | Value |
+|---|---|
+{{- range .StackEnv}}
+| `{{.Key}}` | `{{cell .Value}}` |
+{{- end}}
+{{- else}}
+
+Stack settings were not available (no `-stack-env` file); the configuration of
+the stack under test is unknown to this report.
+{{- end}}
+{{- end}}
+
+{{- define "config"}}
+## Harness parameters
+
+| Parameter | Value |
+|---|---|
+{{- range .Config}}
+| `{{.Key}}` | `{{cell .Value}}` |
+{{- end}}
+{{- end}}
+
+{{- define "notes"}}
+{{- if .Notes}}
+
+## Caveats
+
+{{range .Notes}}- {{.}}
+{{end}}
+{{- end}}
+{{- end}}
+
+{{- define "latency-row"}}| {{.Name}} | {{.S.N}} | {{ms .S.P50}} | {{ms .S.P95}} | {{ms .S.P99}} | {{ms .S.Mean}} | {{ms .S.Max}} |{{end}}

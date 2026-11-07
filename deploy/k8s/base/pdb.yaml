@@ -1,0 +1,30 @@
+# Keep at least one replica of each stateless front during voluntary disruptions
+# (node drains, rolling updates) so the chat hot path never fully drops.
+# AlwaysAllow lets a drain evict pods that are already unhealthy (crash-looping,
+# not ready) instead of blocking on them.
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata: { name: edge }
+spec:
+  minAvailable: 1
+  unhealthyPodEvictionPolicy: AlwaysAllow
+  selector:
+    matchLabels: { app.kubernetes.io/name: edge }
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata: { name: control-plane }
+spec:
+  minAvailable: 1
+  unhealthyPodEvictionPolicy: AlwaysAllow
+  selector:
+    matchLabels: { app.kubernetes.io/name: control-plane }
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata: { name: web }
+spec:
+  minAvailable: 1
+  unhealthyPodEvictionPolicy: AlwaysAllow
+  selector:
+    matchLabels: { app.kubernetes.io/name: web }

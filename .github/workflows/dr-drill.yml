@@ -1,0 +1,42 @@
+name: DR drill
+
+# Backup → restore into a fresh compose project → schema check → golden
+# question with a cited answer (scripts/dr-drill.sh), on the deterministic mock
+# LLM. Records RPO/RTO timings in docs/benchmarks/dr-drill.md (uploaded as an
+# artifact; commit it from a run you want to quote).
+on:
+  schedule:
+    - cron: "41 3 * * 1" # weekly, Monday 03:41 UTC
+  workflow_dispatch:
+
+permissions: read-all
+
+concurrency:
+  group: dr-drill-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  drill:
+    name: backup / restore drill (compose)
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: unit tests (backup / restore, no Docker)
+        run: bash scripts/tests/backup/run.sh
+      - name: drill
+        env:
+          DR_DRILL_LOGS: ${{ runner.temp }}/dr-drill-logs
+        run: scripts/dr-drill.sh
+      - name: upload results
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: dr-drill
+          path: |
+            docs/benchmarks/dr-drill.md
+            ${{ runner.temp }}/dr-drill-logs/
+          if-no-files-found: ignore
+          retention-days: 30

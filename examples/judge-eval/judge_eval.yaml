@@ -1,0 +1,707 @@
+# SPDX-License-Identifier: CC0-1.0
+# Labeled faithfulness set for the eval worker's LLM judge (bench/judge_eval.py).
+# Every context passage is quoted verbatim from examples/sample-corpus; the
+# answers were written by hand. Schema and labeling rules: README.md next to
+# this file. Validate with `make eval-judge ARGS=--dry-run`.
+version: 1
+corpus: "../sample-corpus"  # relative to this file
+items:
+  - id: "en-001"
+    language: en
+    label: faithful
+    tags: [paraphrase, unit_format]
+    context:
+      - document: "Load_Test_Report_2026_Q2.docx"
+        passage: "Between 2 and 6 June 2026 we ran a staged load test against a production-sized replica of the IST-1 environment running NebulaCRM v3.3. The goal was to confirm that the platform can sustain 3,000 requests per second (RPS) for 60 minutes with a p95 latency below 250 ms, which is the capacity we need for the second half of 2026."
+    answer: "The load test ran from 2 to 6 June 2026 on a production-sized replica of IST-1 running NebulaCRM v3.3. Its goal was to show that the platform can hold 3,000 RPS for an hour with a p95 latency under 250 ms."
+  - id: "en-002"
+    language: en
+    label: faithful
+    context:
+      - document: "Load_Test_Report_2026_Q2.docx"
+        passage: "The target was met. At 3,000 RPS sustained for 60 minutes the API recorded a p95 latency of 212 ms, a p99 latency of 480 ms and an error rate of 0.04%. The platform kept scaling until 4,150 RPS, where the primary PostgreSQL node reached 92% CPU and latency degraded sharply; we treat 4,150 RPS as the current breaking point."
+    answer: "Yes. At a sustained 3,000 requests per second the p95 latency was 212 ms and the error rate 0.04%. The breaking point is 4,150 RPS, where the primary PostgreSQL node reached 92% CPU."
+  - id: "en-003"
+    language: en
+    label: faithful
+    tags: [paraphrase, multi_passage]
+    context:
+      - document: "NebulaCRM_API_v3_Reference.md"
+        passage: "Rate limits are applied per token (per API key or per OAuth client) using a sliding one-minute window. Short bursts of up to twice the per-minute limit are tolerated for at most 10 seconds."
+      - document: "NebulaCRM_API_v3_Reference.md"
+        passage: "Every response carries the headers X-RateLimit-Limit, X-RateLimit-Remaining and X-RateLimit-Reset. When the limit is exceeded the API returns HTTP 429 with a Retry-After header giving the number of seconds to wait. Clients must honour Retry-After; tokens that keep sending requests while throttled for more than 15 minutes may be suspended."
+    answer: "Limits are counted per API key or OAuth client over a sliding one-minute window. If you go over them the API answers with HTTP 429, and you have to wait the number of seconds given in the Retry-After header."
+  - id: "en-004"
+    language: en
+    label: faithful
+    tags: [unit_format]
+    context:
+      - document: "NebulaCRM_API_v3_Reference.md"
+        passage: "List endpoints use cursor-based pagination. The default page size is 50 records and the maximum is 200; pass the limit query parameter to change it. Each response includes a next_cursor field, which is null on the last page. Cursors expire after 24 hours. Offset-based pagination from API v2 is not available in v3."
+    answer: "List endpoints return 50 records per page by default and up to 200 with the limit parameter. Cursors stay valid for one day."
+  - id: "en-005"
+    language: en
+    label: faithful
+    tags: [unit_format, paraphrase]
+    context:
+      - document: "NebulaCRM_API_v3_Reference.md"
+        passage: "Your endpoint must answer with a 2xx status within 10 seconds. Failed deliveries are retried 6 times with exponential backoff over roughly 24 hours, at 1 minute, 5 minutes, 30 minutes, 2 hours, 6 hours and 15 hours after the first attempt. After the sixth failed retry the event is dropped and the endpoint is flagged in the admin console; an endpoint that fails for 3 consecutive days is disabled."
+    answer: "A failed webhook delivery is retried six times with exponential backoff over about a day, the last retry coming 15 hours after the first attempt. After that the event is dropped and the endpoint is flagged in the admin console."
+  - id: "en-006"
+    language: en
+    label: faithful
+    context:
+      - document: "Engineering_Code_Review_Guidelines.txt"
+        passage: "Changes in critical paths require 2 approvals: billing, authentication, tenancy and permission checks, data migrations and anything that touches encryption keys. At least one of the two approvers must be listed in the CODEOWNERS file for that path. All other changes require 1 approval. Authors cannot approve their own pull requests, and an approval is dismissed automatically when new commits are pushed."
+    answer: "Changes to billing, authentication, tenancy and permission checks, data migrations or encryption keys need two approvals, and at least one approver must be listed in CODEOWNERS for that path."
+  - id: "en-007"
+    language: en
+    label: faithful
+    tags: [unit_format, paraphrase]
+    context:
+      - document: "Engineering_Code_Review_Guidelines.txt"
+        passage: "We ship on a release train every 2 weeks on Tuesday. The release branch is cut at 09:00 on release day from main; anything merged after that waits for the next train. Release candidates must pass the quality gate run by the Quality team before the Go/No-Go meeting at 14:00. No trains run during the year-end freeze."
+    answer: "Releases ship every other Tuesday. The release branch is cut from main at 9 a.m. on release day, and the Go/No-Go meeting is at 2 p.m."
+  - id: "en-008"
+    language: en
+    label: faithful
+    tags: [unit_format]
+    context:
+      - document: "Postmortem_INC-2026-0417_Database_Outage.pdf"
+        passage: "On 17 April 2026, from 09:12 to 11:59 TRT (167 minutes), the primary PostgreSQL cluster in IST-1 stopped accepting writes. WAL archiving had stalled the previous evening after an object-storage credential rotation; un-archived WAL segments accumulated until the primary's data volume filled up, and the cluster manager fenced the primary into read-only mode to protect data integrity. During the incident 38% of API requests failed with 5xx errors and 286 customer accounts were affected. No customer data was lost."
+    answer: "For 2 hours and 47 minutes on 17 April 2026 the primary PostgreSQL cluster in IST-1 accepted no writes. 38% of API requests failed and 286 customer accounts were affected, but no customer data was lost."
+  - id: "en-009"
+    language: en
+    label: faithful
+    tags: [paraphrase]
+    context:
+      - document: "Postmortem_INC-2026-0417_Database_Outage.pdf"
+        passage: "We deliberately did not fail over to a replica. Promoting a replica would not have cleared the WAL backlog on the old primary and would have risked a split-brain during the credential fix. In hindsight this was the right call: once the archiver had valid credentials, the backlog of roughly 1,900 segments drained in 45 minutes and writes were re-enabled without a topology change."
+    answer: "The team chose not to fail over because promoting a replica would not have cleared the WAL backlog on the old primary and could have caused a split-brain. Once the archiver had valid credentials, about 1,900 segments drained in 45 minutes."
+  - id: "en-010"
+    language: en
+    label: faithful
+    tags: [unit_format]
+    context:
+      - document: "Investor_Update_Q3_2026.pdf"
+        passage: "In lira terms, Q3 revenue was TRY 198.4M and nine-month revenue TRY 536.9M, which is 99.2% of the nine-month budget. Cash on hand at quarter end was TRY 612.5M; we have not drawn on the Series B proceeds for operating expenses since February 2026."
+    answer: "Nine-month revenue was TRY 536.9 million, 99.2% of the nine-month budget, and cash on hand at the end of the quarter was TRY 612.5 million."
+  - id: "en-011"
+    language: en
+    label: faithful
+    context:
+      - document: "Investor_Update_Q3_2026.pdf"
+        passage: "The Berlin office (Nebula Technology GmbH) opened on 2 February 2026 and now has 10 employees. Germany ended the quarter with 37 paying customers, up from 28 at the end of Q2; nine of the 112 new logos we signed in Q3 were German. Since FRA-1 opened, every new DACH customer has chosen EU hosting, and the self-service migration tool shipped in v3.4 lets existing tenants move with at most 30 minutes of read-only time."
+    answer: "Germany ended Q3 with 37 paying customers, up from 28 at the end of Q2, and nine of the 112 new logos signed in Q3 were German."
+  - id: "en-012"
+    language: en
+    label: faithful
+    tags: [unit_format]
+    context:
+      - document: "Data_Processing_Agreement_Template_v2026.docx"
+        passage: "The Customer grants general authorisation for Nebula to engage the Sub-processors listed in the public register at trust.nebulacrm.example/subprocessors. Nebula will notify the Customer at least 30 days before adding or replacing a Sub-processor. The Customer may object on reasonable data protection grounds within 14 days of the notice; if the parties cannot resolve the objection, the Customer may terminate the affected service without penalty and receive a pro-rata refund."
+    answer: "Nebula notifies the customer at least 30 days before adding or replacing a sub-processor, and the customer can object on reasonable data protection grounds within two weeks of the notice."
+  - id: "en-013"
+    language: en
+    label: faithful
+    context:
+      - document: "Data_Processing_Agreement_Template_v2026.docx"
+        passage: "During the 30 days following termination the Customer may export its Customer Data using the self-service export tool. Nebula permanently deletes Customer Data from production systems 90 days after termination of the MSA. Residual copies in backups are overwritten within a further 35 days by the normal backup cycle. Nebula will confirm deletion in writing on request."
+    answer: "After termination the customer has 30 days to export its data. Production copies are permanently deleted 90 days after the MSA ends, and backup copies are overwritten within a further 35 days."
+  - id: "en-014"
+    language: en
+    label: faithful
+    tags: [multi_passage]
+    context:
+      - document: "Churn_Analysis_H1_2026.docx"
+        passage: "We lost 41 customer logos in the first half of 2026. The customer base still grew from 1,180 on 31 December 2025 to 1,326 on 30 June 2026, but every lost logo costs us roughly three months of new-logo sales effort to replace. Annualised gross logo churn for H1 2026 was 6.9%, down from 7.8% for full-year 2025."
+      - document: "Churn_Analysis_H1_2026.docx"
+        passage: "Churn remains concentrated in small accounts: 24 of the 41 churned customers were on the Başlangıç plan and none were on Kurumsal Plus. Price and budget pressure was the most common reason, followed by missing integrations. Annualised churned ARR was TRY 11.8 million, which corresponds to gross revenue churn of 5.2%."
+    answer: "41 logos churned in H1 2026: 24 of them were on the Başlangıç plan and none on Kurumsal Plus. Annualised gross logo churn fell to 6.9% from 7.8% for full-year 2025."
+  - id: "en-015"
+    language: en
+    label: faithful
+    tags: [paraphrase, unit_format]
+    context:
+      - document: "Churn_Analysis_H1_2026.docx"
+        passage: "The save desk started on 1 March 2026. Accounts with a health score below 40 are flagged automatically and contacted by a Customer Success Specialist within 5 business days. Between March and June the save desk contacted 58 at-risk accounts and saved 23 of them. The most effective interventions were a free onboarding refresh (11 saves) and moving the customer to annual prepay (7 saves)."
+    answer: "Since 1 March 2026 the save desk contacts accounts whose health score is under 40 within five business days. From March to June it reached 58 at-risk accounts and kept 23 of them."
+  - id: "en-016"
+    language: en
+    label: faithful
+    tags: [unit_format]
+    context:
+      - document: "Partner_Program_Guide_2026.md"
+        passage: "Partner consultants become Nebula Certified Consultants by passing the online certification exam. The passing score is 75% and the certificate is valid for 24 months. The exam fee is TRY 4,500 per attempt and is waived for Gold and Platinum partners. A consultant counts toward only one partner's tier at a time."
+    answer: "Consultants need at least 75% on the online exam. The certificate is valid for two years, and each attempt costs TRY 4,500 unless the partner is Gold or Platinum."
+  - id: "en-017"
+    language: en
+    label: faithful
+    tags: [unit_format]
+    context:
+      - document: "Release_Notes_NebulaCRM_v3.4.md"
+        passage: "Report export now runs on a streaming engine instead of building the whole file in memory. In our benchmark a report with 1 million rows exports to CSV in under 90 seconds; in v3.3, exports above 200,000 rows could time out. XLSX exports are capped at the format's own limit of 1,048,576 rows per sheet. Large exports continue in the background and the user is notified when the file is ready to download; download links expire after 7 days."
+    answer: "In v3.4 a one-million-row report exports to CSV in less than a minute and a half, whereas in v3.3 exports above 200,000 rows could time out."
+  - id: "en-018"
+    language: en
+    label: faithful
+    tags: [unit_format, distractor, multi_passage]
+    context:
+      - document: "Release_Notes_NebulaCRM_v3.4.md"
+        passage: "Bulk import now accepts up to 100,000 rows per file, up from 50,000 rows in v3.3. API rate limits are unchanged; see the NebulaCRM API v3 Reference."
+      - document: "Release_Notes_NebulaCRM_v3.4.md"
+        passage: "Assist moves out of the beta that started on 1 July 2026 with 40 pilot customers. Usage during the beta is not counted against the new monthly quotas."
+    answer: "Bulk import now takes files of up to 100k rows, twice the 50k limit of v3.3, and API rate limits are unchanged."
+  - id: "en-019"
+    language: en
+    label: unfaithful
+    error_type: wrong_number
+    context:
+      - document: "Load_Test_Report_2026_Q2.docx"
+        passage: "The previous load test, run in Q2 2025 on v3.0, measured a p95 latency of 268 ms at 2,000 RPS and broke at roughly 2,700 RPS. Today the same 2,000 RPS step completes with a p95 of 151 ms. Most of the gain comes from the read-replica routing introduced in v3.2 and from moving report generation off the primary database."
+    answer: "The Q2 2025 test on v3.0 broke at roughly 2,700 RPS. Today the 2,000 RPS step completes with a p95 of 115 ms, mostly thanks to read-replica routing."
+    note: "p95 is 151 ms, not 115 ms."
+  - id: "en-020"
+    language: en
+    label: unfaithful
+    error_type: wrong_number
+    tags: [multi_passage]
+    context:
+      - document: "NebulaCRM_API_v3_Reference.md"
+        passage: "Two authentication methods are supported. Server-to-server integrations should use the OAuth 2.0 client credentials flow; access tokens are valid for 60 minutes and are requested from https://auth.nebulacrm.example/oauth/token. Simple scripts and internal tools may use API keys instead."
+      - document: "NebulaCRM_API_v3_Reference.md"
+        passage: "API keys are created by a workspace administrator under Settings > Integrations. A live key has the form ncrm_live_ followed by 32 hexadecimal characters; sandbox keys use the prefix ncrm_test_. Send the key in the Authorization header as a bearer token. A key is shown only once at creation time, and unused keys are disabled automatically after 180 days without a request."
+    answer: "API keys are created under Settings > Integrations, are shown only once, and are disabled automatically after 90 days without a request."
+    note: "Unused keys are disabled after 180 days."
+  - id: "en-021"
+    language: en
+    label: unfaithful
+    error_type: wrong_number
+    context:
+      - document: "Postmortem_INC-2026-0417_Database_Outage.pdf"
+        passage: "The status page at status.nebulacrm.example was updated six times during the incident. Account managers personally called the 12 largest affected customers, including two Kurumsal Plus accounts that asked for confirmation that their dedicated clusters were unaffected. A written summary of this postmortem was sent to all affected customer administrators on 30 April 2026. The support team handled 412 incident-related tickets on 17 and 18 April, about four times the normal daily volume."
+    answer: "Support handled 412 incident-related tickets on 17 and 18 April, about twice the normal daily volume."
+    note: "The context says about four times the normal volume."
+  - id: "en-022"
+    language: en
+    label: unfaithful
+    error_type: wrong_number
+    context:
+      - document: "Investor_Update_Q3_2026.pdf"
+        passage: "Customer sentiment. NPS slipped from 46 in Q2 to 44 in Q3. The single largest driver was report export performance on large accounts. The export pipeline was rebuilt in v3.4 and now exports one million rows in under 90 seconds; we expect to see the effect in the Q4 survey."
+    answer: "NPS slipped from 46 in Q2 to 41 in Q3, driven mainly by report export performance on large accounts."
+    note: "Q3 NPS is 44."
+  - id: "en-023"
+    language: en
+    label: unfaithful
+    error_type: wrong_number
+    context:
+      - document: "Churn_Analysis_H1_2026.docx"
+        passage: "Price and budget pressure (12 logos) clustered in March and April, after the 2026 price list took effect on 1 January 2026. Most of these customers were small Başlangıç accounts whose per-user price rose from TRY 520 to TRY 690. Several said they would have stayed on an annual prepay plan had they known about the 15% discount."
+    answer: "Başlangıç per-user prices rose from TRY 520 to TRY 690, and several customers said they would have stayed on annual prepay had they known about its 25% discount."
+    note: "The annual prepay discount is 15%."
+  - id: "en-024"
+    language: en
+    label: unfaithful
+    error_type: wrong_entity
+    tags: [multi_passage]
+    context:
+      - document: "Load_Test_Report_2026_Q2.docx"
+        passage: "Results were reviewed in the capacity meeting on 11 June 2026 and accepted by Ayşe Demir. Raw measurements and load-generator scripts are stored in the performance repository under perf/2026-q2."
+      - document: "Load_Test_Report_2026_Q2.docx"
+        passage: "Between 2 and 6 June 2026 we ran a staged load test against a production-sized replica of the IST-1 environment running NebulaCRM v3.3. The goal was to confirm that the platform can sustain 3,000 requests per second (RPS) for 60 minutes with a p95 latency below 250 ms, which is the capacity we need for the second half of 2026."
+    answer: "The results were reviewed in the capacity meeting on 11 June 2026 and accepted by Emre Kaya."
+    note: "They were accepted by Ayşe Demir."
+  - id: "en-025"
+    language: en
+    label: unfaithful
+    error_type: wrong_entity
+    context:
+      - document: "Data_Processing_Agreement_Template_v2026.docx"
+        passage: "This DPA remains in force for as long as Nebula processes Customer Data. It is governed by Turkish law and disputes are subject to the exclusive jurisdiction of the İstanbul (Çağlayan) courts. For customers contracting with Nebula Technology GmbH, German law applies and the courts of Berlin have jurisdiction."
+    answer: "The DPA is governed by Turkish law, but for customers contracting with Nebula Technology GmbH German law applies and the courts of Munich have jurisdiction."
+    note: "The courts of Berlin have jurisdiction."
+  - id: "en-026"
+    language: en
+    label: unfaithful
+    error_type: wrong_entity
+    context:
+      - document: "Investor_Update_Q3_2026.pdf"
+        passage: "At the board meeting of 24 September 2026 the board approved a TRY 3.5M market research budget for a possible Dubai office, expanded the employee stock option pool from 8% to 10% of fully diluted shares, and appointed Atlas Kuzey Bağımsız Denetim A.Ş. as external auditor for the 2026 financial year. Minutes are available to shareholders on request from the CEO Office."
+    answer: "The board appointed Atlas Kuzey Bağımsız Denetim A.Ş. as external auditor for 2026 and approved a TRY 3.5M market research budget for a possible Abu Dhabi office."
+    note: "The market research is for a possible Dubai office."
+  - id: "en-027"
+    language: en
+    label: unfaithful
+    error_type: wrong_entity
+    context:
+      - document: "Release_Notes_NebulaCRM_v3.4.md"
+        passage: "NebulaCRM v3.4 introduces a native CTI telephony connector. Calls placed or received through a SIP-based call-centre system are logged automatically on the matching contact, with duration, direction and outcome. Click-to-call works from contact and deal cards. The connector is available on Profesyonel and above and is configured by an administrator in Settings > Integrations > Telephony."
+    answer: "The native CTI connector logs calls on the matching contact, supports click-to-call, and is available on the Başlangıç plan and above."
+    note: "It is available on Profesyonel and above."
+  - id: "en-028"
+    language: en
+    label: unfaithful
+    error_type: wrong_entity
+    context:
+      - document: "Postmortem_INC-2026-0417_Database_Outage.pdf"
+        passage: "This was our most serious production incident since INC-2025-1107 on 7 November 2025, a 52-minute Sev-2 outage caused by a DNS change on the load balancer. Unlike that incident, the trigger here was a routine change whose side effect was invisible to our monitoring for almost 15 hours."
+    answer: "It was the most serious incident since INC-2025-1107, a 52-minute Sev-2 outage caused by an expired TLS certificate on the load balancer."
+    note: "INC-2025-1107 was caused by a DNS change."
+  - id: "en-029"
+    language: en
+    label: unfaithful
+    error_type: unsupported_claim
+    context:
+      - document: "NebulaCRM_API_v3_Reference.md"
+        passage: "The NebulaCRM REST API v3 gives programmatic access to contacts, companies, deals, quotes, activities and custom objects. All endpoints are served from the base URL https://api.nebulacrm.example/v3 over HTTPS (TLS 1.2 or later). Requests and responses use JSON encoded in UTF-8, and all timestamps are ISO 8601 in UTC."
+    answer: "All v3 endpoints are served from https://api.nebulacrm.example/v3 over TLS 1.2 or later, and requests can be sent as JSON or XML."
+    note: "Only JSON is mentioned; XML support is invented."
+  - id: "en-030"
+    language: en
+    label: unfaithful
+    error_type: unsupported_claim
+    context:
+      - document: "Engineering_Code_Review_Guidelines.txt"
+        passage: "Reviewers give a first response within 1 business day. If a pull request has waited longer than that, the author may ask in the team channel for another reviewer. Small, urgent fixes can be reviewed synchronously in a short call, but the approval must still be recorded on the pull request."
+    answer: "Reviewers respond within one business day; a pull request that waits longer is automatically reassigned to the team lead."
+    note: "The context only lets the author ask for another reviewer in the team channel."
+  - id: "en-031"
+    language: en
+    label: unfaithful
+    error_type: unsupported_claim
+    context:
+      - document: "Partner_Program_Guide_2026.md"
+        passage: "Partners must follow Nebula's ethics rules, including the gift and hospitality limits, when dealing with customers and Nebula employees. Either party may terminate the partner agreement with 60 days' written notice. On termination, customers keep their subscriptions and are transferred to direct sales or to another partner of their choice."
+    answer: "Either party can end the partner agreement with 60 days' written notice, and a terminated partner keeps earning commission on its customers' renewals for 12 months."
+    note: "Post-termination commission is not in the context."
+  - id: "en-032"
+    language: en
+    label: unfaithful
+    error_type: unsupported_claim
+    context:
+      - document: "Release_Notes_NebulaCRM_v3.4.md"
+        passage: "Nebula Assist answers questions about accounts, deals and activities, summarises calls and drafts follow-up e-mails. Every answer cites the CRM records it was built from, and the assistant only sees records the user is already allowed to open. Customer data is never used to train models."
+    answer: "Nebula Assist cites the CRM records it used, only sees records the user may already open, and runs entirely on Nebula's own GPU servers in IST-1."
+    note: "Where the model runs is not stated."
+  - id: "en-033"
+    language: en
+    label: unfaithful
+    error_type: contradiction
+    tags: [multi_passage]
+    context:
+      - document: "Partner_Program_Guide_2026.md"
+        passage: "Market development funds (MDF) are accrued quarterly and must be used within the following two quarters for jointly approved activities such as events, webinars and localized content. Unused MDF does not roll over."
+      - document: "Partner_Program_Guide_2026.md"
+        passage: "Direct sales will not pursue an opportunity that a partner has registered and that is under protection. Opportunities that the customer brings directly to Nebula before any registration remain with direct sales."
+    answer: "MDF accrues quarterly and should be used within the following two quarters; any unused MDF rolls over into the next year."
+    note: "The context says unused MDF does not roll over."
+  - id: "en-034"
+    language: en
+    label: unfaithful
+    error_type: contradiction
+    context:
+      - document: "Data_Processing_Agreement_Template_v2026.docx"
+        passage: "The Customer may audit Nebula's compliance with this DPA once in any 12-month period, on at least 30 days' written notice, during normal business hours and through an independent auditor bound by confidentiality. Nebula's current ISO/IEC 27001 certificate and surveillance audit summary will be accepted in place of an on-site audit unless a regulator requires otherwise or a breach has occurred. Audit costs are borne by the Customer unless the audit reveals a material breach of this DPA."
+    answer: "The customer may audit Nebula once in any 12-month period on 30 days' written notice, and Nebula always bears the cost of the audit."
+    note: "Costs are borne by the customer unless a material breach is found."
+  - id: "en-035"
+    language: en
+    label: unfaithful
+    error_type: contradiction
+    context:
+      - document: "NebulaCRM_API_v3_Reference.md"
+        passage: "Breaking changes are only introduced in a new major version. Additive changes (new fields, new endpoints) can ship in any release, so clients must ignore unknown fields. API v2 is deprecated and will be switched off on 31 March 2027 (sunset date); from 1 January 2027 every v2 response carries a Sunset header. Customers still on v2 should follow the migration guide on the developer portal."
+    answer: "Breaking changes can ship in any release, which is why clients must ignore unknown fields. API v2 will be switched off on 31 March 2027."
+    note: "Breaking changes ship only in a new major version."
+  - id: "en-036"
+    language: en
+    label: unfaithful
+    error_type: contradiction
+    context:
+      - document: "Load_Test_Report_2026_Q2.docx"
+        passage: "The results should be read with three limitations in mind. First, Nebula Assist was still in closed beta during the test window, so its traffic is not part of the request mix. Second, only the IST-1 topology was tested; FRA-1 runs a smaller footprint and will need its own test before it serves more than 100 tenants. Third, background jobs such as nightly report generation were paused, which slightly flatters database CPU figures at the higher steps."
+    answer: "Nebula Assist traffic was part of the request mix, and only the IST-1 topology was tested."
+    note: "Assist was in closed beta and its traffic was not part of the mix."
+  - id: "en-037"
+    language: en
+    label: unfaithful
+    error_type: partial
+    context:
+      - document: "Load_Test_Report_2026_Q2.docx"
+        passage: "The test environment mirrored production topology: 34 services on Kubernetes, one PostgreSQL 16 primary with two read replicas, a three-broker Kafka cluster and a Redis cluster. The dataset was a 1.8 TB anonymised snapshot taken on 20 May 2026, covering roughly 1,300 tenants."
+    answer: "The test environment mirrored production: 34 services on Kubernetes, a PostgreSQL 16 primary with two read replicas, a three-broker Kafka cluster, a Redis cluster and a dedicated Elasticsearch cluster. The dataset was a 1.8 TB anonymised snapshot from 20 May 2026 covering about 1,300 tenants."
+    note: "The Elasticsearch cluster is invented."
+  - id: "en-038"
+    language: en
+    label: unfaithful
+    error_type: partial
+    context:
+      - document: "Investor_Update_Q3_2026.pdf"
+        passage: "Nebula Assist left beta on 15 September 2026 after a ten-week pilot with 40 customers. It is included in the Kurumsal and Kurumsal Plus plans and sold as an add-on on Profesyonel. In the first two weeks after GA, 173 tenants switched it on and 31 Profesyonel customers bought the add-on. Every answer cites the CRM records it used and customer data is never used for model training — a point that has mattered in every enterprise security review so far."
+    answer: "Nebula Assist reached GA on 15 September 2026 after a ten-week pilot with 40 customers. It is included in Kurumsal and Kurumsal Plus and sold as a Profesyonel add-on priced at TRY 150 per user per month; in the first two weeks 173 tenants switched it on and 31 Profesyonel customers bought the add-on."
+    note: "The add-on price is invented."
+  - id: "en-039"
+    language: en
+    label: unfaithful
+    error_type: partial
+    context:
+      - document: "Churn_Analysis_H1_2026.docx"
+        passage: "Early-life churn is a recurring pattern: 19 of the 41 churned customers (46%) left within their first 12 months. Most of them never completed onboarding: fewer than 30% of their licensed users logged in during the final 60 days before cancellation."
+    answer: "19 of the 41 churned customers (46%) left within their first 12 months. Most never finished onboarding, fewer than 30% of their licensed users logged in during the last 60 days, and most of them had been sold through partners."
+    note: "The partner-sourcing claim is invented."
+  - id: "en-040"
+    language: en
+    label: unfaithful
+    error_type: partial
+    context:
+      - document: "Data_Processing_Agreement_Template_v2026.docx"
+        passage: "Customer Data is stored in Türkiye: production in the İstanbul data centre IST-1 and disaster recovery replicas in the Ankara site ANK-DR1. Customers who select EU hosting are served from the FRA-1 region in Frankfurt, Germany, available since 1 July 2026; for these customers Customer Data, including backups, is stored only in the EU. Nebula will not transfer Customer Data outside the selected region except to the Sub-processors and locations shown in the register."
+    answer: "Customer Data is stored in Türkiye, with production in IST-1 and disaster recovery replicas in ANK-DR1. EU-hosted customers have been served from FRA-1 in Frankfurt since 1 July 2026, with backups kept only in the EU, and a second EU region in Amsterdam is planned for 2027."
+    note: "The Amsterdam region is invented."
+  - id: "tr-001"
+    language: tr
+    label: faithful
+    tags: [paraphrase]
+    context:
+      - document: "Teknik_Mimari_NebulaCRM_2026.pdf"
+        passage: "NebulaCRM, Kubernetes 1.30 üzerinde koşan 34 mikroservisten oluşur. Çekirdek iş mantığı (müşteri, fırsat, teklif, aktivite, faturalama servisleri) Go ile, web arayüzü ve arayüze özel BFF (backend-for-frontend) katmanı TypeScript ile yazılmıştır. Servisler arası senkron iletişim gRPC, asenkron iletişim ise olay veriyolu üzerinden yürür. Dış dünyaya açılan tek giriş noktası API ağ geçididir; REST API v3, web uygulaması ve mobil istemciler aynı ağ geçidini kullanır."
+    answer: "NebulaCRM, Kubernetes 1.30 üzerinde çalışan 34 mikroservisten oluşuyor; çekirdek iş mantığı Go ile, web arayüzü ve BFF katmanı TypeScript ile yazılmış."
+  - id: "tr-002"
+    language: tr
+    label: faithful
+    context:
+      - document: "Teknik_Mimari_NebulaCRM_2026.pdf"
+        passage: "Ana işlemsel veri PostgreSQL 16 üzerinde tutulur. Her bölgede bir birincil sunucu ve iki okuma replikası bulunur; replikalar raporlama sorgularını ve arama indeksleme işlerini karşılar. Replikasyon akış tabanlıdır ve izlenen hedef gecikme 2 saniyenin altıdır. Bağlantılar her serviste ayrı bir bağlantı havuzu katmanı üzerinden yönetilir; birincil sunucuda eşzamanlı bağlantı üst sınırı 800 olarak ayarlanmıştır."
+    answer: "Her bölgede bir birincil PostgreSQL 16 sunucusu ve iki okuma replikası var. Replikasyon gecikmesi hedefi 2 saniyenin altında; birincil sunucuda eşzamanlı bağlantı üst sınırı 800."
+  - id: "tr-003"
+    language: tr
+    label: faithful
+    tags: [unit_format]
+    context:
+      - document: "Teknik_Mimari_NebulaCRM_2026.pdf"
+        passage: "Redis 7 kümesi oturum verisi, API hız limiti sayaçları ve kısa ömürlü önbellek için kullanılır; kalıcı veri Redis'te tutulmaz. Kafka kümesi 3 broker ile çalışır, konuların replikasyon faktörü 3, min.insync.replicas değeri 2'dir. Olaylar varsayılan olarak 7 gün saklanır; denetim (audit) olayları ise 30 gün tutulur ve ardından nesne depolamaya arşivlenir."
+    answer: "Kafka kümesi 3 broker ile çalışıyor. Olaylar varsayılan olarak bir hafta, denetim olayları ise 30 gün saklanıyor ve ardından nesne depolamaya arşivleniyor."
+  - id: "tr-004"
+    language: tr
+    label: faithful
+    tags: [unit_format, paraphrase]
+    context:
+      - document: "Teknik_Mimari_NebulaCRM_2026.pdf"
+        passage: "Üç ortam bulunur: dev, staging ve prod. Dev ortamı her birleştirmede (merge) otomatik güncellenir. Staging, üretimin anonimleştirilmiş veriyle beslenen birebir kopyasıdır ve sürüm adayları burada en az 48 saat bekletilir. Üretime dağıtım kademeli (canary) yapılır: yeni sürüm önce trafiğin %5'ini alır, 30 dakika boyunca hata oranı ve gecikme metrikleri eşik içinde kalırsa %50'ye, ardından %100'e çıkarılır."
+    answer: "Sürüm adayları staging'de en az iki gün bekletiliyor. Üretimde yeni sürüm önce trafiğin yüzde 5'ini alıyor; yarım saat boyunca hata oranı ve gecikme eşik içinde kalırsa yüzde 50'ye, ardından trafiğin tamamına çıkarılıyor."
+  - id: "tr-005"
+    language: tr
+    label: faithful
+    tags: [unit_format]
+    context:
+      - document: "Teknik_Mimari_NebulaCRM_2026.pdf"
+        passage: "Eylül 2026'da ölçülen tepe trafik saniyede 2.400 istektir (RPS); bu değer 2025 yılının tepe değeri olan 1.650 RPS'ye göre belirgin bir artışı gösterir. Haziran 2026 yük testinde platform 3.000 RPS'yi hedef gecikme içinde taşımıştır; ayrıntılar Ar-Ge yük testi raporundadır. Kapasite planlamasında tepe trafiğin en az 1,5 katı pay bırakılması kuralı uygulanır."
+    answer: "Eylül 2026'daki tepe trafik saniyede 2400 istekti; 2025'in tepe değeri ise 1650 RPS idi."
+  - id: "tr-006"
+    language: tr
+    label: faithful
+    tags: [unit_format]
+    context:
+      - document: "Parola_ve_Erisim_Politikasi_v2.0_2026.pdf"
+        passage: "1 Mart 2026 itibarıyla MFA, kimlik sağlayıcıya bağlı tüm sistemlerde zorunludur: e-posta, VPN, kurumsal mesajlaşma, kod deposu, CI/CD platformu, İK portalı, finans uygulamaları ve NebulaCRM yönetim konsolu dahil. SMS ile tek kullanımlık kod, yalnızca yedek yöntem olarak ve en fazla 7 gün süreyle kullanılabilir."
+    answer: "1 Mart 2026'dan beri kimlik sağlayıcıya bağlı tüm sistemlerde MFA zorunlu. SMS ile gelen tek kullanımlık kod yalnızca yedek yöntem olarak ve en fazla bir hafta kullanılabiliyor."
+  - id: "tr-007"
+    language: tr
+    label: faithful
+    tags: [unit_format, paraphrase]
+    context:
+      - document: "Parola_ve_Erisim_Politikasi_v2.0_2026.pdf"
+        passage: "Yönetici (privileged) hesaplar için FIDO2 donanım güvenlik anahtarı zorunludur. Her yöneticiye biri yedek olmak üzere iki anahtar teslim edilir. Kayıp anahtar 24 saat içinde BT Yardım Masası'na bildirilmeli ve anahtar kimlik sağlayıcıdan derhal iptal edilmelidir."
+    answer: "Yöneticilere biri yedek iki FIDO2 donanım anahtarı veriliyor. Kaybolan anahtar bir gün içinde BT Yardım Masası'na bildirilmeli ve kimlik sağlayıcıdan hemen iptal edilmeli."
+  - id: "tr-008"
+    language: tr
+    label: faithful
+    context:
+      - document: "Yedekleme_ve_Felaket_Kurtarma_Plani.docx"
+        passage: "Tüm planlar için kurtarma noktası hedefi (RPO) 15 dakika, kurtarma süresi hedefi (RTO) 4 saattir. Kurumsal Plus müşterilerine ayrılmış özel veritabanı kümeleri için RTO 2 saattir. Bu hedefler müşteri sözleşmelerindeki taahhütlerin temelini oluşturur ve her DR testinde ölçülür."
+    answer: "RPO 15 dakika, RTO 4 saat; Kurumsal Plus müşterilerine ayrılmış veritabanı kümelerinde RTO 2 saat."
+  - id: "tr-009"
+    language: tr
+    label: faithful
+    tags: [unit_format]
+    context:
+      - document: "Yedekleme_ve_Felaket_Kurtarma_Plani.docx"
+        passage: "PostgreSQL kümelerinde sürekli WAL arşivleme kullanılır; WAL segmentleri en geç 60 saniyede bir nesne depolamaya gönderilir. Her gün saat 02:00'de (TSİ) tam anlık görüntü (snapshot) alınır. Günlük yedekler 35 gün, aylık yedekler 12 ay saklanır. Yedekler AES-256 ile şifrelenir; şifreleme anahtarları donanım güvenlik modülünde tutulur ve yedeklerle aynı sahada saklanmaz."
+    answer: "WAL segmentleri en geç dakikada bir nesne depolamaya gönderiliyor. Günlük yedekler 35 gün, aylık yedekler bir yıl saklanıyor ve AES-256 ile şifreleniyor."
+  - id: "tr-010"
+    language: tr
+    label: faithful
+    tags: [multi_passage, paraphrase]
+    context:
+      - document: "Yedekleme_ve_Felaket_Kurtarma_Plani.docx"
+        passage: "DR testleri yılda iki kez, mayıs ve kasım aylarında yapılır. Testte IST-1'in tamamen kaybedildiği varsayılır ve üretim trafiği ANK-DR1'e taşınır. Son test 23 Mayıs 2026'da yapılmış ve gerçekleşen RTO 2 saat 41 dakika olmuştur. Bir sonraki test 21 Kasım 2026 tarihinde planlanmıştır."
+      - document: "Yedekleme_ve_Felaket_Kurtarma_Plani.docx"
+        passage: "Tüm planlar için kurtarma noktası hedefi (RPO) 15 dakika, kurtarma süresi hedefi (RTO) 4 saattir. Kurumsal Plus müşterilerine ayrılmış özel veritabanı kümeleri için RTO 2 saattir. Bu hedefler müşteri sözleşmelerindeki taahhütlerin temelini oluşturur ve her DR testinde ölçülür."
+    answer: "DR testleri yılda iki kez, mayıs ve kasımda yapılıyor. 23 Mayıs 2026 testinde gerçekleşen RTO 2 saat 41 dakika oldu, yani 4 saatlik hedefin altında kaldı."
+  - id: "tr-011"
+    language: tr
+    label: faithful
+    tags: [unit_format]
+    context:
+      - document: "Seyahat_ve_Harcama_Politikasi_2026.pdf"
+        passage: "Uçak biletleri ekonomi sınıfında ve en az 7 gün önceden alınır. Uçuş süresi 6 saati aşan seyahatlerde business sınıfı yalnızca CEO onayıyla kullanılabilir. Bagaj ücretleri, iş için zorunlu ekipman taşındığında karşılanır. Şehirlerarası 400 km'nin altındaki mesafelerde öncelikle tren veya otobüs tercih edilir."
+    answer: "Uçak biletleri ekonomi sınıfında ve en az bir hafta önceden alınmalı; 6 saati aşan uçuşlarda business sınıfı ancak CEO onayıyla kullanılabiliyor."
+  - id: "tr-012"
+    language: tr
+    label: faithful
+    tags: [unit_format]
+    context:
+      - document: "Seyahat_ve_Harcama_Politikasi_2026.pdf"
+        passage: "Harcırah; yemek, şehir içi küçük ulaşım ve bahşiş gibi belgelendirilmesi güç günlük giderleri karşılar. 2026 yılında yurt içi harcırah günlük 1.400 TL, yurt dışı harcırah günlük 95 EUR'dur. Harcırah tutarları her yıl Finans Müdürlüğü tarafından bütçe hazırlığında gözden geçirilir."
+    answer: "2026'da yurt içi harcırah günlük 1400 TL, yurt dışı harcırah günlük 95 avro."
+  - id: "tr-013"
+    language: tr
+    label: faithful
+    context:
+      - document: "Finansal_Sonuclar_2026_Q3.pdf"
+        passage: "Nebula Teknoloji A.Ş. 2026 yılının üçüncü çeyreğini 198,4 milyon TL gelirle kapatmıştır. Çeyrek geliri bir önceki çeyreğe göre %12,6 artmıştır. Yılın ilk dokuz ayında elde edilen 536,9 milyon TL gelir, aynı dönem bütçesi olan 541,0 milyon TL'nin %99,2'sine karşılık gelmektedir. Brüt kâr marjı %73,6 ile bütçe varsayımı olan %73,0'ün üzerinde gerçekleşmiştir."
+    answer: "Şirket üçüncü çeyreği 198,4 milyon TL gelirle kapattı; bu, önceki çeyreğe göre %12,6 artış. Brüt kâr marjı %73,6 ile bütçedeki %73,0 varsayımını aştı."
+  - id: "tr-014"
+    language: tr
+    label: faithful
+    tags: [unit_format]
+    context:
+      - document: "Finansal_Sonuclar_2026_Q3.pdf"
+        passage: "Üçüncü çeyrek FAVÖK'ü 27,8 milyon TL, FAVÖK marjı %14,0 olmuştur. 30 Eylül 2026 itibarıyla nakit ve nakit benzerleri 612,5 milyon TL'dir. Alacak tahsil süresi (DSO) ikinci çeyrekteki 52 günden 47 güne gerilemiştir."
+    answer: "Üçüncü çeyrekte FAVÖK 27,8 milyon TL, FAVÖK marjı %14 oldu; alacak tahsil süresi 52 günden 47 güne indi."
+  - id: "tr-015"
+    language: tr
+    label: faithful
+    context:
+      - document: "KVKK_Kisisel_Veri_Saklama_ve_Imha_Politikasi.pdf"
+        passage: "Kiracı CRM verileri, müşteri sözleşmesinin sona ermesinden 90 gün sonra üretim ortamından kalıcı olarak silinir; bu tarihten sonra veriler yedeklerde en fazla 35 gün daha kalır ve yedek döngüsüyle birlikte tamamen ortadan kalkar. Sözleşmenin sona ermesinden sonraki ilk 30 gün içinde müşteri, self-servis dışa aktarma aracıyla verilerini indirebilir."
+    answer: "Sözleşme bittikten sonra müşteri ilk 30 gün verilerini self-servis araçla indirebiliyor. Veriler 90 gün sonra üretimden kalıcı olarak siliniyor ve yedeklerde en fazla 35 gün daha kalıyor."
+  - id: "tr-016"
+    language: tr
+    label: faithful
+    tags: [unit_format]
+    context:
+      - document: "KVKK_Kisisel_Veri_Saklama_ve_Imha_Politikasi.pdf"
+        passage: "Kişisel verilerin kanuni olmayan yollarla başkaları tarafından elde edildiğinin öğrenilmesi halinde, durum öğrenme anından itibaren en geç 72 saat içinde Kişisel Verileri Koruma Kurulu'na bildirilir. Etkilenen ilgili kişilere ise en kısa sürede doğrudan veya uygun yöntemlerle bilgi verilir. Olay müdahalesini BT Müdürü Emre Kaya, hukuki değerlendirmeyi ve Kurul bildirimini Hukuk ve Uyum Müdürü Elif Aydın yürütür."
+    answer: "Bir ihlal öğrenildiğinde en geç üç gün içinde Kişisel Verileri Koruma Kurulu'na bildirim yapılıyor. Olay müdahalesini Emre Kaya, hukuki değerlendirmeyi ve bildirimi Elif Aydın yürütüyor."
+  - id: "tr-017"
+    language: tr
+    label: faithful
+    tags: [paraphrase]
+    context:
+      - document: "Uzaktan_ve_Hibrit_Calisma_Politikasi_2026.docx"
+        passage: "Hibrit çalışanlar haftada en az 2 gün ofiste bulunur. Bu günlerden ikisi çekirdek ofis günleri olan Salı ve Perşembe'dir. Ekipler, sprint planlaması veya müşteri ziyaretleri gibi ihtiyaçlar doğrultusunda ek ofis günleri belirleyebilir; ancak bu günler en az bir hafta önceden duyurulur."
+    answer: "Hibrit çalışanların haftada en az iki gün ofiste olması gerekiyor ve bu günlerin ikisi çekirdek ofis günleri olan Salı ile Perşembe."
+  - id: "tr-018"
+    language: tr
+    label: faithful
+    tags: [paraphrase, unit_format]
+    context:
+      - document: "Izin_Yonetmeligi_2026.pdf"
+        passage: "Kullanılmayan yıllık izinlerin en fazla 10 iş günü bir sonraki yıla devredilebilir. Devreden izinlerin 31 Mart'a kadar kullanılması esastır. Bu tarihe kadar kullanılmayan devreden izinler, yönetici ve İK tarafından birlikte planlanarak Nisan–Haziran döneminde kullandırılır. Yıllık izinler ücrete dönüştürülemez; iş sözleşmesinin sona ermesi hâlinde kullanılmamış izin ücretleri yasal düzenlemeye göre ödenir."
+    answer: "Kullanılmayan yıllık iznin en fazla 10 iş günü ertesi yıla aktarılabiliyor ve bu iznin Mart sonuna kadar kullanılması bekleniyor. Yıllık izin paraya çevrilemiyor."
+  - id: "tr-019"
+    language: tr
+    label: unfaithful
+    error_type: wrong_number
+    context:
+      - document: "Teknik_Mimari_NebulaCRM_2026.pdf"
+        passage: "Tam metin arama için ayrı bir arama kümesi işletilir. İndeksleme, PostgreSQL replikalarından okunan değişiklik olaylarıyla beslenir; bir kaydın oluşturulmasından arama sonuçlarında görünmesine kadar geçen süre için hedef p95 değeri 5 saniyedir."
+    answer: "Tam metin arama ayrı bir kümede çalışıyor ve PostgreSQL replikalarından gelen değişiklik olaylarıyla besleniyor; bir kaydın arama sonuçlarında görünmesi için hedef p95 süre 15 saniye."
+    note: "Hedef p95 değeri 5 saniye."
+  - id: "tr-020"
+    language: tr
+    label: unfaithful
+    error_type: wrong_number
+    context:
+      - document: "Seyahat_ve_Harcama_Politikasi_2026.pdf"
+        passage: "Taksi kullanımı havalimanı transferleri, saat 22:00'den sonraki dönüşler ve toplu taşımanın bulunmadığı güzergâhlar için serbesttir. Kiralık araçlarda kompakt sınıf esastır. Kişisel aracını iş için kullanan çalışana kilometre başına 9,5 TL ödenir; köprü ve otoyol ücretleri ayrıca karşılanır."
+    answer: "Kişisel aracını iş için kullanan çalışana kilometre başına 7,5 TL ödeniyor; köprü ve otoyol ücretleri ayrıca karşılanıyor."
+    note: "Kilometre başına 9,5 TL."
+  - id: "tr-021"
+    language: tr
+    label: unfaithful
+    error_type: wrong_number
+    context:
+      - document: "Finansal_Sonuclar_2026_Q3.pdf"
+        passage: "Üçüncü çeyrekte işletme faaliyetlerinden 58,9 milyon TL nakit girişi sağlanmış, 17,7 milyon TL yatırım harcaması yapılmıştır. Çeyrek ortalama kuru 41,3 TL/USD olarak gerçekleşmiştir; bütçe varsayımı yıllık ortalama 42,5 TL/USD'dir."
+    answer: "Üçüncü çeyrekte işletme faaliyetlerinden 58,9 milyon TL nakit girişi sağlandı ve 27,7 milyon TL yatırım harcaması yapıldı."
+    note: "Yatırım harcaması 17,7 milyon TL."
+  - id: "tr-022"
+    language: tr
+    label: unfaithful
+    error_type: wrong_number
+    context:
+      - document: "Uzaktan_ve_Hibrit_Calisma_Politikasi_2026.docx"
+        passage: "Çalışanlar takvim yılı içinde toplam en fazla 20 iş günü yurt dışından çalışabilir. Talep, seyahatten en az 15 gün önce İK Portalı üzerinden yapılır ve yöneticinin yanında İnsan Kaynakları'nın onayını gerektirir. Hukuk ve Uyum Müdürlüğü'nün yaptırım ve veri aktarımı değerlendirmesi nedeniyle kısıtlı ülkeler listesindeki ülkelerden çalışmaya izin verilmez. Yurt dışından çalışılan günler için uzaktan çalışma ödeneğine ek bir ödeme yapılmaz."
+    answer: "Çalışanlar bir takvim yılında toplam en fazla 30 iş günü yurt dışından çalışabiliyor; talep en az 15 gün önce İK Portalı'ndan yapılıyor."
+    note: "Sınır 20 iş günü."
+  - id: "tr-023"
+    language: tr
+    label: unfaithful
+    error_type: wrong_number
+    tags: [multi_passage]
+    context:
+      - document: "Izin_Yonetmeligi_2026.pdf"
+        passage: "Çalışan, yöneticisinin ve İnsan Kaynakları Müdürü'nün onayıyla en fazla 3 ay ücretsiz izin kullanabilir. Ücretsiz izin süresince özel sağlık sigortası şirket tarafından karşılanmaya devam eder; yemek kartı ve uzaktan çalışma ödeneği ödenmez."
+      - document: "Izin_Yonetmeligi_2026.pdf"
+        passage: "Hekim raporu alan çalışan, raporu en geç 2 iş günü içinde İK Portalı'na yükler. Yılda toplam 3 günü aşmayan raporsuz hastalık hâllerinde yöneticinin onayı yeterlidir. Uzun süreli raporlarda çalışanın işe dönüşünde İK ile kısa bir görüşme yapılır."
+    answer: "Çalışan, yöneticisinin ve İK Müdürü'nün onayıyla en fazla 6 ay ücretsiz izin kullanabiliyor."
+    note: "En fazla 3 ay."
+  - id: "tr-024"
+    language: tr
+    label: unfaithful
+    error_type: wrong_entity
+    context:
+      - document: "Parola_ve_Erisim_Politikasi_v2.0_2026.pdf"
+        passage: "Politikaya istisna talepleri, gerekçe ve telafi edici kontrollerle birlikte BT Portalı üzerinden Emre Kaya'ya iletilir. Onaylanan istisnalar en fazla 6 ay geçerlidir ve risk kaydına işlenir. Politikaya aykırılık, disiplin yönetmeliği çerçevesinde değerlendirilir. Uyum durumu her çeyrek sonunda Kalite Müdürlüğü'ne raporlanır; 2026 ilk çeyreğinde MFA kapsamı %99,2 olarak ölçülmüştür."
+    answer: "Politikaya istisna talepleri BT Portalı üzerinden Onur Aslan'a iletiliyor; onaylanan istisnalar en fazla 6 ay geçerli."
+    note: "Talepler Emre Kaya'ya iletilir."
+  - id: "tr-025"
+    language: tr
+    label: unfaithful
+    error_type: wrong_entity
+    context:
+      - document: "Yedekleme_ve_Felaket_Kurtarma_Plani.docx"
+        passage: "DR test kayıtları BT Müdürü Emre Kaya tarafından imzalanarak onaylanır. 23 Mayıs 2026 testine ait kayıt, 9–11 Haziran 2026'daki ISO/IEC 27001 gözetim denetiminde imza eksikliği nedeniyle minör uygunsuzluk konusu olmuş; kayıt 12 Haziran 2026'da Emre Kaya tarafından imzalanmıştır. Bundan sonra test raporu, imza tamamlanmadan kapatılamayacak şekilde iş akışına bağlanmıştır."
+    answer: "DR test kayıtları Hukuk ve Uyum Müdürü Elif Aydın tarafından imzalanarak onaylanıyor."
+    note: "Kayıtları BT Müdürü Emre Kaya onaylar."
+  - id: "tr-026"
+    language: tr
+    label: unfaithful
+    error_type: wrong_entity
+    context:
+      - document: "KVKK_Kisisel_Veri_Saklama_ve_Imha_Politikasi.pdf"
+        passage: "Kurum adına Veri Sorumlusu İrtibat Kişisi Uyum Uzmanı Onur Aslan'dır. Kişisel verilerle ilgili tüm başvurular kvkk@nebulacrm.example adresine veya genel merkez adresine yazılı olarak iletilir ve en geç 30 gün içinde ücretsiz olarak sonuçlandırılır. Şirket, Veri Sorumluları Sicil Bilgi Sistemi'ne (VERBİS) kayıtlıdır; kayıt bilgileri her yıl ocak ayında güncellenir."
+    answer: "Veri Sorumlusu İrtibat Kişisi BT Müdürü Emre Kaya; başvurular en geç 30 gün içinde ücretsiz olarak sonuçlandırılıyor."
+    note: "İrtibat kişisi Uyum Uzmanı Onur Aslan."
+  - id: "tr-027"
+    language: tr
+    label: unfaithful
+    error_type: wrong_entity
+    context:
+      - document: "Teknik_Mimari_NebulaCRM_2026.pdf"
+        passage: "IST-1 birincil üretim bölgesidir ve Türkiye'deki tüm müşteriler burada barındırılır. ANK-DR1 sıcak yedek olarak çalışır; veritabanı WAL kayıtları ve nesne depolama sürekli olarak buraya kopyalanır. FRA-1 bölgesi 1 Temmuz 2026'da açılmıştır ve DACH bölgesindeki yeni müşteriler için AB içinde veri yerleşimi sağlar. FRA-1, IST-1 ile aynı mimariyi daha küçük ölçekte çalıştırır; iki bölge arasında müşteri verisi kopyalanmaz."
+    answer: "ANK-DR1 sıcak yedek olarak çalışıyor. FRA-1 bölgesi 1 Temmuz 2026'da açıldı ve İskandinav ülkelerindeki yeni müşteriler için AB içinde veri yerleşimi sağlıyor."
+    note: "FRA-1 DACH bölgesindeki müşteriler içindir."
+  - id: "tr-028"
+    language: tr
+    label: unfaithful
+    error_type: wrong_entity
+    context:
+      - document: "Uzaktan_ve_Hibrit_Calisma_Politikasi_2026.docx"
+        passage: "Tam uzaktan çalışma; departman yöneticisinin önerisi ve İnsan Kaynakları Müdürü'nün onayıyla uygulanır. Talep; görevin niteliği, çalışanın performans geçmişi ve ekip ihtiyacı birlikte değerlendirilerek karara bağlanır. Tam uzaktan çalışma onayları 6 ayda bir gözden geçirilir. Tam uzaktan çalışanlar çeyrekte en az bir kez, masrafları şirket tarafından karşılanarak, bağlı oldukları ofiste ekip buluşmasına katılır."
+    answer: "Tam uzaktan çalışma, departman yöneticisinin önerisi ve CEO'nun onayıyla uygulanıyor; onaylar 6 ayda bir gözden geçiriliyor."
+    note: "Onayı İnsan Kaynakları Müdürü verir."
+  - id: "tr-029"
+    language: tr
+    label: unfaithful
+    error_type: unsupported_claim
+    context:
+      - document: "Teknik_Mimari_NebulaCRM_2026.pdf"
+        passage: "NebulaCRM paylaşımlı şema modeliyle çalışır: her tabloda tenant_id kolonu bulunur ve PostgreSQL satır düzeyi güvenlik (row-level security) politikaları her sorguda kiracı filtresini zorunlu kılar. Uygulama katmanı bağlantıyı açarken oturum değişkenine kiracı kimliğini yazar; bu değişken yoksa politika hiçbir satır döndürmez. Böylece uygulama kodundaki bir filtre hatası başka bir kiracının verisini sızdıramaz."
+    answer: "Her tabloda tenant_id kolonu var ve satır düzeyi güvenlik politikaları kiracı filtresini zorunlu kılıyor; ayrıca her kiracının verisi ayrı bir şifreleme anahtarıyla şifreleniyor."
+    note: "Kiracı başına şifreleme anahtarı bağlamda yok."
+  - id: "tr-030"
+    language: tr
+    label: unfaithful
+    error_type: unsupported_claim
+    tags: [distractor, multi_passage]
+    context:
+      - document: "Seyahat_ve_Harcama_Politikasi_2026.pdf"
+        passage: "Müşteri ağırlama giderleri kişi başı 1.750 TL'yi aşamaz ve harcama belgesinde katılımcıların adı ile kurum bilgisi yer alır. Kamu görevlilerine yönelik ağırlamalar önceden Hukuk ve Uyum Müdürlüğü'ne bildirilir. Hediye ve ağırlama kabulüne ilişkin sınırlar Etik Kurallar ve İhbar Prosedürü'nde düzenlenmiştir."
+      - document: "Seyahat_ve_Harcama_Politikasi_2026.pdf"
+        passage: "Konaklama, şirketin anlaşmalı otellerinde veya aşağıdaki gecelik üst limitleri aşmayacak şekilde yapılır. Limitler kahvaltı dahil, KDV dahil oda fiyatı için geçerlidir. Fuar ve büyük etkinlik dönemlerinde limit aşımı Finans Müdürü onayıyla kabul edilir."
+    answer: "Müşteri ağırlama giderleri kişi başı 1.750 TL'yi aşamaz; bu sınırı aşan ağırlamalar Finans Müdürü onayıyla geri ödenebilir."
+    note: "Finans Müdürü onayı yalnızca konaklama limiti için geçerli; ağırlama için istisna yok."
+  - id: "tr-031"
+    language: tr
+    label: unfaithful
+    error_type: unsupported_claim
+    context:
+      - document: "Izin_Yonetmeligi_2026.pdf"
+        passage: "Hekim raporu alan çalışan, raporu en geç 2 iş günü içinde İK Portalı'na yükler. Yılda toplam 3 günü aşmayan raporsuz hastalık hâllerinde yöneticinin onayı yeterlidir. Uzun süreli raporlarda çalışanın işe dönüşünde İK ile kısa bir görüşme yapılır."
+    answer: "Hekim raporu en geç 2 iş günü içinde İK Portalı'na yüklenmeli ve rapor süresince maaşın tamamı şirket tarafından ödeniyor."
+    note: "Raporlu dönemde maaş ödemesi bağlamda yok."
+  - id: "tr-032"
+    language: tr
+    label: unfaithful
+    error_type: unsupported_claim
+    context:
+      - document: "KVKK_Kisisel_Veri_Saklama_ve_Imha_Politikasi.pdf"
+        passage: "Saklama süresi dolan kişisel veriler, altı ayda bir yapılan periyodik imha işlemleriyle silinir. Periyodik imha her yıl haziran ve aralık aylarında gerçekleştirilir. Her imha işlemi bir tutanakla kayıt altına alınır; imha tutanakları 3 yıl süreyle saklanır. 2025 Aralık dönemindeki imha işleminde 4.812 aday kaydı ve 27 adet emekliye ayrılmış disk imha edilmiştir."
+    answer: "Periyodik imha haziran ve aralık aylarında yapılıyor, tutanaklar 3 yıl saklanıyor ve her imha işlemi bağımsız bir denetçi tarafından doğrulanıyor."
+    note: "Bağımsız denetçi doğrulaması bağlamda yok."
+  - id: "tr-033"
+    language: tr
+    label: unfaithful
+    error_type: contradiction
+    context:
+      - document: "Uzaktan_ve_Hibrit_Calisma_Politikasi_2026.docx"
+        passage: "Ev-ofis kurulum desteği, hibrit veya uzaktan modele ilk kez geçen çalışana bir defaya mahsus ödenir ve çalışma masası, ergonomik sandalye ya da aydınlatma gibi kalemler için kullanılır. Desteğin ödenmesi için harcama belgelerinin geçiş tarihinden itibaren 60 gün içinde İK Portalı'na yüklenmesi gerekir. Destek, aynı çalışana 3 yıl geçmeden yeniden ödenmez."
+    answer: "Ev-ofis kurulum desteği, hibrit veya uzaktan modele geçen çalışana her yıl yeniden ödeniyor; harcama belgeleri 60 gün içinde İK Portalı'na yüklenmeli."
+    note: "Destek bir defaya mahsus; 3 yıl geçmeden yeniden ödenmez."
+  - id: "tr-034"
+    language: tr
+    label: unfaithful
+    error_type: contradiction
+    context:
+      - document: "Teknik_Mimari_NebulaCRM_2026.pdf"
+        passage: "IST-1 birincil üretim bölgesidir ve Türkiye'deki tüm müşteriler burada barındırılır. ANK-DR1 sıcak yedek olarak çalışır; veritabanı WAL kayıtları ve nesne depolama sürekli olarak buraya kopyalanır. FRA-1 bölgesi 1 Temmuz 2026'da açılmıştır ve DACH bölgesindeki yeni müşteriler için AB içinde veri yerleşimi sağlar. FRA-1, IST-1 ile aynı mimariyi daha küçük ölçekte çalıştırır; iki bölge arasında müşteri verisi kopyalanmaz."
+    answer: "FRA-1, IST-1 ile aynı mimariyi daha küçük ölçekte çalıştırıyor ve iki bölge arasında müşteri verisi sürekli kopyalanıyor."
+    note: "İki bölge arasında müşteri verisi kopyalanmaz."
+  - id: "tr-035"
+    language: tr
+    label: unfaithful
+    error_type: contradiction
+    context:
+      - document: "Izin_Yonetmeligi_2026.pdf"
+        passage: "18 yaşından küçük ve 50 yaşından büyük çalışanların yıllık izin süresi kıdemlerinden bağımsız olarak 20 iş gününden az olamaz. Deneme süresi içindeki çalışanlar, ilk yıllarını doldurmadan önce yöneticinin onayıyla en fazla 5 iş günü avans izin kullanabilir."
+    answer: "18 yaşından küçük ve 50 yaşından büyük çalışanların yıllık izni 20 iş gününden az olamıyor; deneme süresindeki çalışanlar ise ilk yılını doldurmadan hiç izin kullanamıyor."
+    note: "Deneme süresinde yönetici onayıyla 5 iş gününe kadar avans izin kullanılabilir."
+  - id: "tr-036"
+    language: tr
+    label: unfaithful
+    error_type: contradiction
+    context:
+      - document: "Yedekleme_ve_Felaket_Kurtarma_Plani.docx"
+        passage: "Müşteri eklentileri ve dışa aktarma dosyaları IST-1'den ANK-DR1'e asenkron olarak çoğaltılır; çoğaltma gecikmesi hedefi 5 dakikadır. Yedek kovaları 35 gün boyunca değiştirilemez (object lock) modda tutulur. FRA-1 verileri Avrupa Birliği dışına kopyalanmaz; FRA-1 yedekleri aynı bölgedeki ayrı bir veri salonunda saklanır."
+    answer: "Müşteri eklentileri IST-1'den ANK-DR1'e asenkron çoğaltılıyor; FRA-1 yedekleri de felaket kurtarma için ANK-DR1'de saklanıyor."
+    note: "FRA-1 verisi AB dışına kopyalanmaz; yedekleri aynı bölgede tutulur."
+  - id: "tr-037"
+    language: tr
+    label: unfaithful
+    error_type: partial
+    context:
+      - document: "Yedekleme_ve_Felaket_Kurtarma_Plani.docx"
+        passage: "Her ayın ilk çarşamba günü, rastgele seçilen bir kiracının verisi izole bir ortama geri yüklenir ve kayıt sayıları üretimle karşılaştırılır. 2026'nın ilk beş ayında yapılan beş testin tamamı başarılı olmuş, ortalama geri yükleme süresi 38 dakika olarak ölçülmüştür."
+    answer: "Her ayın ilk çarşamba günü rastgele seçilen bir kiracının verisi izole bir ortama geri yükleniyor ve kayıt sayıları üretimle karşılaştırılıyor. 2026'nın ilk beş ayındaki beş testin tamamı başarılı oldu, ortalama süre 38 dakikaydı; testleri Ayşe Demir yürütüyor."
+    note: "Testleri kimin yürüttüğü uydurma."
+  - id: "tr-038"
+    language: tr
+    label: unfaithful
+    error_type: partial
+    context:
+      - document: "Finansal_Sonuclar_2026_Q3.pdf"
+        passage: "Dokuz aylık gelir bütçenin 4,1 milyon TL altında kalmıştır. Sapmanın yaklaşık 2,6 milyon TL'si Berlin ofisinde yeni müşteri kazanımının planlanandan yavaş ilerlemesinden, kalan kısmı ise Nisan kesintisine bağlı hizmet kredilerinden kaynaklanmaktadır."
+    answer: "Dokuz aylık gelir bütçenin 4,1 milyon TL altında kaldı. Sapmanın yaklaşık 2,6 milyon TL'si Berlin'de yeni müşteri kazanımının yavaş ilerlemesinden, kalanı ise Nisan kesintisinin hizmet kredilerinden ve kur farkından kaynaklanıyor."
+    note: "Kur farkı bağlamda yok."
+  - id: "tr-039"
+    language: tr
+    label: unfaithful
+    error_type: partial
+    context:
+      - document: "Uzaktan_ve_Hibrit_Calisma_Politikasi_2026.docx"
+        passage: "Haftalık çalışma süresi 45 saattir. Çalışanlar mesailerini 08:00–19:00 aralığında esnek olarak planlayabilir; ancak 10:00–16:00 çekirdek saatlerinde toplantılara katılabilir ve mesajlara makul sürede yanıt verebilir durumda olmalıdır. Uzaktan çalışılan günlerde kurumsal takvimde konum bilgisi güncel tutulur. Mesai dışı iletişimde acil durumlar dışında yanıt beklenmez."
+    answer: "Haftalık çalışma süresi 45 saat. Mesai 08:00–19:00 arasında esnek planlanabiliyor, 10:00–16:00 çekirdek saatlerinde ulaşılabilir olmak gerekiyor; cuma günleri çekirdek saat uygulanmıyor."
+    note: "Cuma istisnası uydurma."
+  - id: "tr-040"
+    language: tr
+    label: unfaithful
+    error_type: partial
+    context:
+      - document: "Izin_Yonetmeligi_2026.pdf"
+        passage: "Yıllık izin süresi çalışanın kıdemine göre belirlenir. Şirket, yasal sürenin üzerine her kıdem grubunda 2 iş günü Nebula ek izni tanır. 2025 yılında 1 iş günü olan Nebula ek izni, 1 Ocak 2026'dan itibaren 2 iş gününe çıkarılmıştır."
+    answer: "Şirket yasal yıllık iznin üzerine her kıdem grubunda 2 iş günü Nebula ek izni veriyor. Bu ek izin 2025'te 1 iş günüydü, 1 Ocak 2026'da 2 güne çıktı ve 10 yılı aşan kıdemde 3 güne yükseliyor."
+    note: "10 yıl üstü için 3 gün uydurma."

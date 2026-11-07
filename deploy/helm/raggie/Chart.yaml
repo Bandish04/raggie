@@ -1,0 +1,22 @@
+apiVersion: v2
+name: raggie
+description: >-
+  Self-hosted RAG + AI chat platform (edge, control-plane, web, workers,
+  embeddings gateway) with single-node and high-availability profiles.
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+kubeVersion: ">=1.29.0-0"
+home: https://github.com/alicangunduz/raggie
+sources:
+  - https://github.com/alicangunduz/raggie
+keywords: [rag, llm, chat, qdrant, sse]
+annotations:
+  artifacthub.io/license: Apache-2.0
+dependencies:
+  # Distributed Qdrant for the ha profile (vectordb.mode=cluster). The single
+  # profile runs an in-chart single-node Qdrant instead.
+  - name: qdrant
+    version: "1.20.0"
+    repository: https://qdrant.github.io/qdrant-helm
+    condition: qdrant.enabled

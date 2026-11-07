@@ -1,0 +1,7 @@
+# hadolint configuration (CI security job + local runs).
+failure-threshold: warning
+ignored:
+  # Pinning Debian package versions (apt-get install pkg=ver) breaks every time
+  # the distro ships a security update; the images instead pin the base image
+  # tag and are rebuilt (and trivy-scanned) on each release.
+  - DL3008

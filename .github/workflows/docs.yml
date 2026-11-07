@@ -1,0 +1,81 @@
+name: Docs
+
+# Markdown link check with lychee (config: .github/lychee.toml).
+#   links:          repo-relative links and #anchors, offline; blocks the PR.
+#   external-links: every http(s) URL, nightly / on demand; warns, never fails.
+# Every PR runs `links` (no paths filter): it is a required check, and a
+# required check skipped by a filter would never report and block the PR.
+on:
+  pull_request:
+  push:
+    branches: [main]
+    paths:
+      - "**/*.md"
+      - .github/lychee.toml
+  schedule:
+    - cron: "11 4 * * *" # daily, 04:11 UTC (external links)
+  workflow_dispatch:
+
+permissions: read-all
+
+concurrency:
+  group: docs-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Pinned release binary, verified by checksum (no third-party action).
+  LYCHEE_VERSION: "0.24.2"
+  LYCHEE_SHA256: 1f4e0ef7f6554a6ed33dd7ac144fb2e1bbed98598e7af973042fc5cd43951c9a
+
+jobs:
+  links:
+    name: relative links + anchors (offline)
+    if: github.event_name != 'schedule'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: install lychee
+        run: |
+          archive="lychee-x86_64-unknown-linux-gnu.tar.gz"
+          curl -fsSL --retry 3 -o "$RUNNER_TEMP/$archive" \
+            "https://github.com/lycheeverse/lychee/releases/download/lychee-v${LYCHEE_VERSION}/${archive}"
+          echo "${LYCHEE_SHA256}  $RUNNER_TEMP/$archive" | sha256sum -c -
+          mkdir -p "$RUNNER_TEMP/lychee"
+          tar -xzf "$RUNNER_TEMP/$archive" -C "$RUNNER_TEMP/lychee"
+          dirname "$(find "$RUNNER_TEMP/lychee" -name lychee -type f | head -n1)" >> "$GITHUB_PATH"
+      - name: check
+        run: lychee --config .github/lychee.toml --offline --no-progress --root-dir "$PWD" '**/*.md'
+
+  external-links:
+    name: external links (nightly, non-blocking)
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: install lychee
+        run: |
+          archive="lychee-x86_64-unknown-linux-gnu.tar.gz"
+          curl -fsSL --retry 3 -o "$RUNNER_TEMP/$archive" \
+            "https://github.com/lycheeverse/lychee/releases/download/lychee-v${LYCHEE_VERSION}/${archive}"
+          echo "${LYCHEE_SHA256}  $RUNNER_TEMP/$archive" | sha256sum -c -
+          mkdir -p "$RUNNER_TEMP/lychee"
+          tar -xzf "$RUNNER_TEMP/$archive" -C "$RUNNER_TEMP/lychee"
+          dirname "$(find "$RUNNER_TEMP/lychee" -name lychee -type f | head -n1)" >> "$GITHUB_PATH"
+      - name: check
+        env:
+          GITHUB_TOKEN: ${{ github.token }} # raises GitHub's rate limit for github.com links
+        run: |
+          rc=0
+          lychee --config .github/lychee.toml --no-progress --root-dir "$PWD" \
+            --format markdown --output "$RUNNER_TEMP/links.md" '**/*.md' || rc=$?
+          cat "$RUNNER_TEMP/links.md" >> "$GITHUB_STEP_SUMMARY" || true
+          if [ "$rc" -ne 0 ]; then
+            echo "::warning::lychee found unreachable external links (exit $rc); see the job summary"
+          fi

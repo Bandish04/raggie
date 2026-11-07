@@ -1,0 +1,31 @@
+{{- $root := . -}}
+{{- $svcs := list -}}
+{{- if .Values.edge.enabled }}{{ $svcs = append $svcs (dict "component" "edge" "ports" (list (dict "name" "http" "port" .Values.edge.port) (dict "name" "metrics" "port" .Values.edge.metricsPort))) }}{{ end -}}
+{{- if .Values.controlPlane.enabled }}{{ $svcs = append $svcs (dict "component" "control-plane" "ports" (list (dict "name" "http" "port" .Values.controlPlane.port))) }}{{ end -}}
+{{- if .Values.web.enabled }}{{ $svcs = append $svcs (dict "component" "web" "ports" (list (dict "name" "http" "port" .Values.web.port))) }}{{ end -}}
+{{- if .Values.embeddings.enabled }}{{ $svcs = append $svcs (dict "component" "embeddings" "ports" (list (dict "name" "http" "port" .Values.embeddings.port))) }}{{ end -}}
+{{- if .Values.mockLLM.enabled }}{{ $svcs = append $svcs (dict "component" "mockllm" "ports" (list (dict "name" "http" "port" .Values.mockLLM.port))) }}{{ end -}}
+{{- range $role, $component := dict "ingestion" "ingestion-worker" "eval" "eval-worker" "scheduler" "scheduler" }}
+{{- if (index $root.Values.workers $role).enabled }}{{ $svcs = append $svcs (dict "component" $component "ports" (list (dict "name" "health" "port" $root.Values.workers.healthPort))) }}{{ end -}}
+{{- end -}}
+{{- range $svcs }}
+{{- $sel := dict "root" $root "component" .component }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "raggie.componentName" $sel }}
+  labels:
+    {{- include "raggie.componentLabels" $sel | nindent 4 }}
+spec:
+  type: ClusterIP
+  selector:
+    {{- include "raggie.selectorLabels" $sel | nindent 4 }}
+  ports:
+    {{- range .ports }}
+    - name: {{ .name }}
+      port: {{ .port }}
+      targetPort: {{ .name }}
+      protocol: TCP
+    {{- end }}
+{{- end }}

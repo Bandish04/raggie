@@ -1,0 +1,50 @@
+# Weekly dependency updates. Minor and patch bumps are grouped into one PR per
+# ecosystem and directory; majors arrive as individual PRs so they get a real
+# review. Security updates are not affected by these groups.
+version: 2
+
+updates:
+  - package-ecosystem: gomod
+    directory: /services/edge
+    schedule: { interval: weekly, day: monday }
+    groups:
+      minor-and-patch: { update-types: [minor, patch] }
+
+  - package-ecosystem: uv
+    directories:
+      - /services/control-plane
+      - /services/workers
+      - /services/embeddings
+    schedule: { interval: weekly, day: monday }
+    groups:
+      minor-and-patch: { update-types: [minor, patch] }
+
+  - package-ecosystem: npm
+    directory: /web
+    schedule: { interval: weekly, day: monday }
+    groups:
+      minor-and-patch: { update-types: [minor, patch] }
+
+  - package-ecosystem: docker
+    directories:
+      - /services/edge
+      - /services/control-plane
+      - /services/workers
+      - /services/embeddings
+      - /web
+    schedule: { interval: weekly, day: monday }
+    groups:
+      minor-and-patch: { update-types: [minor, patch] }
+
+  - package-ecosystem: docker-compose
+    directory: /deploy/compose
+    schedule: { interval: weekly, day: monday }
+    groups:
+      minor-and-patch: { update-types: [minor, patch] }
+
+  # Keeps the SHA pins in .github/workflows current (and their version comments).
+  - package-ecosystem: github-actions
+    directory: /
+    schedule: { interval: weekly, day: monday }
+    groups:
+      minor-and-patch: { update-types: [minor, patch] }

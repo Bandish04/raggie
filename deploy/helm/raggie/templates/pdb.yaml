@@ -1,0 +1,29 @@
+{{- $root := . -}}
+{{- $items := list
+  (dict "component" "edge" "on" .Values.edge.enabled "pdb" .Values.edge.pdb)
+  (dict "component" "control-plane" "on" .Values.controlPlane.enabled "pdb" .Values.controlPlane.pdb)
+  (dict "component" "web" "on" .Values.web.enabled "pdb" .Values.web.pdb)
+  (dict "component" "embeddings" "on" .Values.embeddings.enabled "pdb" .Values.embeddings.pdb)
+  (dict "component" "ingestion-worker" "on" .Values.workers.ingestion.enabled "pdb" .Values.workers.ingestion.pdb)
+  (dict "component" "eval-worker" "on" .Values.workers.eval.enabled "pdb" .Values.workers.eval.pdb)
+  (dict "component" "scheduler" "on" .Values.workers.scheduler.enabled "pdb" .Values.workers.scheduler.pdb) -}}
+{{- range $items }}
+{{- if and .on .pdb.enabled }}
+{{- $sel := dict "root" $root "component" .component }}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "raggie.componentName" $sel }}
+  labels:
+    {{- include "raggie.componentLabels" $sel | nindent 4 }}
+spec:
+  minAvailable: {{ .pdb.minAvailable }}
+  # Evict a crash-looping pod even when the budget is exhausted, so a bad pod
+  # never blocks node drains.
+  unhealthyPodEvictionPolicy: AlwaysAllow
+  selector:
+    matchLabels:
+      {{- include "raggie.selectorLabels" $sel | nindent 6 }}
+{{- end }}
+{{- end }}

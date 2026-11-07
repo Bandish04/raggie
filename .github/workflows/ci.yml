@@ -1,0 +1,425 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# Least privilege: jobs only read the repository. Every third-party action is
+# pinned to a full commit SHA (Dependabot keeps the pins and comments current).
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  GO_VERSION: "1.26"
+  PYTHON_VERSION: "3.13"
+  NODE_VERSION: "22"
+  # Scanner versions (bump deliberately; Go tools are verified by the Go
+  # checksum database, Python tools resolve through uv).
+  GOVULNCHECK_VERSION: v1.9.0
+  GOSEC_VERSION: v2.30.0
+  GITLEAKS_VERSION: v8.30.1
+  KUBE_LINTER_VERSION: v0.8.3
+  PIP_AUDIT_VERSION: "2.10.1"
+  SEMGREP_VERSION: "1.183.0"
+  BANDIT_VERSION: "1.9.4"
+  RUFF_VERSION: "0.15.15"
+
+jobs:
+  edge:
+    name: edge (go)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:17.11-alpine
+        env:
+          POSTGRES_DB: raggie
+          POSTGRES_USER: raggie
+          POSTGRES_PASSWORD: raggie
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U raggie -d raggie"
+          --health-interval 5s --health-timeout 3s --health-retries 10
+      redis:
+        image: valkey/valkey:8.1.11-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "valkey-cli ping"
+          --health-interval 5s --health-timeout 3s --health-retries 10
+      qdrant:
+        image: qdrant/qdrant:v1.20.0@sha256:9bfc89f9914fc14876a88c05270685921a55b8877b254a98bcc1cc2f0a424cd2
+        ports:
+          - 6333:6333
+    env:
+      DATABASE_URL: postgresql://raggie:raggie@localhost:5432/raggie
+      REDIS_URL: redis://localhost:6379
+      QDRANT_TEST_URL: http://localhost:6333
+    defaults:
+      run:
+        working-directory: services/edge
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache-dependency-path: services/edge/go.sum
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          enable-cache: true
+          cache-dependency-glob: services/control-plane/uv.lock
+      - name: wait for qdrant
+        run: |
+          for _ in $(seq 1 30); do
+            curl -sf http://localhost:6333/readyz && exit 0
+            sleep 2
+          done
+          echo "qdrant did not become ready" >&2
+          exit 1
+      # The live store/authz tests run against the real schema, which only the
+      # control-plane migrations define.
+      - name: apply control-plane migrations
+        working-directory: services/control-plane
+        env:
+          RAGGIE_ENV: test
+        run: uv run --frozen --no-dev python -m raggie_control_plane.db.migrate
+      - name: gofmt
+        run: |
+          unformatted="$(gofmt -l .)"
+          if [ -n "$unformatted" ]; then
+            echo "Run gofmt on:" >&2
+            echo "$unformatted" >&2
+            exit 1
+          fi
+      - run: go vet ./...
+      - run: go build ./...
+      # The live A2 latency check skips itself under the race detector; real
+      # latency evidence comes from the benchmark harness, not unit tests.
+      - run: go test -race ./...
+      - name: govulncheck
+        run: go run "golang.org/x/vuln/cmd/govulncheck@${GOVULNCHECK_VERSION}" ./...
+      - name: fuzz (short run per target)
+        working-directory: .
+        run: make fuzz-short
+      # Only the inputs `go test -fuzz` just wrote (untracked), not the
+      # committed seed corpora.
+      - name: collect new fuzz crashers
+        if: failure()
+        working-directory: .
+        run: |
+          mkdir -p "$RUNNER_TEMP/crashers"
+          git ls-files -z --others --exclude-standard -- 'services/edge/**/testdata/fuzz/**' \
+            | xargs -0 -r cp --parents -t "$RUNNER_TEMP/crashers"
+      - name: upload fuzz crashers
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: edge-fuzz-crashers
+          path: ${{ runner.temp }}/crashers/
+          if-no-files-found: ignore
+
+  python:
+    name: ${{ matrix.service }} (python)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        service: [control-plane, workers, embeddings]
+    services:
+      postgres:
+        image: postgres:17.11-alpine
+        env:
+          POSTGRES_DB: raggie
+          POSTGRES_USER: raggie
+          POSTGRES_PASSWORD: raggie
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U raggie -d raggie"
+          --health-interval 5s --health-timeout 3s --health-retries 10
+      redis:
+        image: valkey/valkey:8.1.11-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "valkey-cli ping"
+          --health-interval 5s --health-timeout 3s --health-retries 10
+      qdrant:
+        image: qdrant/qdrant:v1.20.0@sha256:9bfc89f9914fc14876a88c05270685921a55b8877b254a98bcc1cc2f0a424cd2
+        ports:
+          - 6333:6333
+    env:
+      DATABASE_URL: postgresql://raggie:raggie@localhost:5432/raggie
+      REDIS_TEST_URL: redis://localhost:6379
+      QDRANT_TEST_URL: http://localhost:6333
+    defaults:
+      run:
+        working-directory: services/${{ matrix.service }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          enable-cache: true
+          cache-dependency-glob: services/${{ matrix.service }}/uv.lock
+      - name: wait for qdrant
+        run: |
+          for _ in $(seq 1 30); do
+            curl -sf http://localhost:6333/readyz && exit 0
+            sleep 2
+          done
+          echo "qdrant did not become ready" >&2
+          exit 1
+      - run: uv sync --frozen --extra dev
+      - run: uv run --frozen ruff check .
+      - run: uv run --frozen ruff format --check .
+      - run: uv run --frozen pytest -q -p no:warnings
+      # Audit exactly what the image ships: the locked runtime dependencies.
+      - name: pip-audit
+        run: |
+          uv export --frozen --no-dev --no-hashes --no-emit-project > "$RUNNER_TEMP/requirements.txt"
+          uvx "pip-audit==${PIP_AUDIT_VERSION}" --disable-pip --no-deps --progress-spinner off \
+            -r "$RUNNER_TEMP/requirements.txt"
+
+  web:
+    name: web (next.js)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+        with:
+          package_json_file: web/package.json
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+          cache-dependency-path: web/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint
+      - run: pnpm exec tsc --noEmit
+      - run: pnpm test:unit
+      - run: pnpm i18n:check
+      - run: pnpm build
+        env:
+          NEXT_TELEMETRY_DISABLED: "1"
+      # Chat characterization suite: the build above under `next start` against
+      # a Node stub of the control plane + edge (no backend, no extra build).
+      - run: pnpm exec playwright install --with-deps chromium
+      - run: pnpm test:chat
+        env:
+          NEXT_TELEMETRY_DISABLED: "1"
+      - name: upload chat suite report
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: web-chat-report
+          path: |
+            web/playwright-report/
+            web/test-results/chat/
+          if-no-files-found: ignore
+          retention-days: 7
+      - run: pnpm audit --prod --audit-level=high
+
+  widget:
+    name: widget (vanilla js)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      # widget/embed.js has no dependencies; its suite lives with the web unit
+      # tests but only needs node itself.
+      - run: node --test web/lib/widget-embed.test.ts
+
+  secrets:
+    name: security / secrets (gitleaks)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0 # scan the full history, not just the tip
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: false
+      - run: go install "github.com/zricethezav/gitleaks/v8@${GITLEAKS_VERSION}"
+      - run: gitleaks git --config .gitleaks.toml --redact --no-banner --exit-code 1 .
+
+  sast:
+    name: security / sast (semgrep, bandit, gosec)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache-dependency-path: services/edge/go.sum
+      # Repo tooling and security-test scripts: same pinned ruff as the services.
+      - name: ruff (scripts, tests/security, bench)
+        run: |
+          uvx "ruff@${RUFF_VERSION}" check scripts tests/security bench
+          uvx "ruff@${RUFF_VERSION}" format --check scripts tests/security bench
+      - name: license headers (SPDX) + notices tooling
+        run: |
+          uv run --no-project --with "pytest==9.0.3" pytest -q -p no:cacheprovider \
+            scripts/license scripts/notices
+          python3 scripts/license/spdx.py --check
+      - name: shell scripts (shellcheck + installer/upgrade tests, no Docker)
+        run: |
+          git ls-files -z -- '*.sh' | xargs -0 uvx --from "shellcheck-py==0.11.0.1" shellcheck -x -P SCRIPTDIR --severity=warning
+          bash deploy/scripts/tests/run.sh
+          bash scripts/upgrade/0.1.0/tests/test_lib.sh
+          bash scripts/tests/backup/run.sh
+          bash scripts/release/tests/run.sh
+          bash scripts/ha/tests/test_lib.sh
+          bash scripts/github/tests/run.sh
+          bash scripts/ci/tests/test_check_dco.sh
+      - name: semgrep custom rules self-test
+        run: uvx "semgrep==${SEMGREP_VERSION}" --test --metrics off --config .semgrep/raggie.yml .semgrep/raggie.py
+      - name: semgrep (registry packs + .semgrep/raggie.yml, fails on ERROR)
+        run: |
+          uvx "semgrep==${SEMGREP_VERSION}" scan --metrics off --disable-version-check \
+            --config p/python --config p/golang --config p/typescript --config p/react \
+            --config p/owasp-top-ten --config p/secrets --config .semgrep/raggie.yml \
+            --severity ERROR --error \
+            --exclude internal --exclude CC-Session-Logs --exclude node_modules \
+            --exclude .semgrep --exclude '*/tests/*' \
+            services web widget
+      - name: bandit (medium+ severity)
+        run: |
+          uvx "bandit==${BANDIT_VERSION}" -ll -r \
+            services/control-plane/raggie_control_plane \
+            services/workers/raggie_workers \
+            services/embeddings/raggie_embeddings
+      - name: gosec
+        working-directory: services/edge
+        run: go run "github.com/securego/gosec/v2/cmd/gosec@${GOSEC_VERSION}" -exclude-generated ./...
+
+  iac:
+    name: security / dockerfiles + deploy config
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: hadolint (all Dockerfiles, .hadolint.yaml)
+        run: |
+          mapfile -t dockerfiles < <(git ls-files '*Dockerfile*')
+          docker run --rm -v "$PWD:/repo:ro" -w /repo \
+            hadolint/hadolint:v2.15.1@sha256:32dac94127fd60b7b7e3fbfc65e1383b9b5e25c9bfd7b8536de7a539fe68a12d \
+            hadolint --config .hadolint.yaml "${dockerfiles[@]}"
+      - name: trivy config (deploy/)
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          scan-type: config
+          scan-ref: deploy
+          severity: HIGH,CRITICAL
+          exit-code: "1"
+
+  deploy-validate:
+    name: compose + kustomize validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: false
+      - uses: azure/setup-kubectl@bda439f5f36b99b262ebdcd3613869bddb064c8e # v5.2.0
+        with:
+          version: v1.33.4
+      - uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1
+        with:
+          version: v4.1.4
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      # Compose services read `env_file: ../../.env`; the example file carries the
+      # development defaults every profile must render with.
+      - name: docker compose config (core, mock)
+        run: |
+          cp .env.example .env
+          for profile in core mock; do
+            docker compose -f deploy/compose/docker-compose.yml --env-file .env --profile "$profile" config -q
+          done
+          compose="docker compose -f deploy/compose/docker-compose.yml --env-file .env"
+          $compose -f deploy/compose/docker-compose.demo.yml --profile core --profile mock config -q
+          $compose -f deploy/compose/docker-compose.ollama.yml --profile core config -q
+          $compose -f deploy/compose/docker-compose.ollama.yml -f deploy/compose/docker-compose.gpu.yml \
+            --profile core config -q
+          docker compose -f deploy/compose/docker-compose.test-deps.yml config -q
+      - name: Caddyfile validate (local :80 and domain modes)
+        run: |
+          for site in ":80" "chat.example.com"; do
+            docker run --rm -e RAGGIE_SITE_ADDRESS="$site" -e ACME_EMAIL= \
+              -v "$PWD/deploy/compose/caddy/Caddyfile:/etc/caddy/Caddyfile:ro" \
+              caddy:2.11.7-alpine@sha256:e70b164da81ef698b3ad19af799ea6086ce6d9e48ed4079eb9fe26f6fbf14ee5 \
+              caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
+          done
+      - name: kustomize build (dev, prod)
+        run: |
+          mkdir -p "$RUNNER_TEMP/k8s"
+          for overlay in dev prod; do
+            kubectl kustomize --load-restrictor LoadRestrictionsNone "deploy/k8s/overlays/$overlay" \
+              > "$RUNNER_TEMP/k8s/$overlay.yaml"
+          done
+      # The internet-facing web tier must never receive a backend secret, in any
+      # deployment flavour (scripts/ci/check_web_env.py).
+      - name: web container env holds no secrets (compose, kustomize, helm)
+        run: |
+          docker compose -f deploy/compose/docker-compose.yml --env-file .env --profile core \
+            config --format json > "$RUNNER_TEMP/compose-core.json"
+          for profile in single ha; do
+            helm template raggie deploy/helm/raggie -n raggie --skip-tests \
+              -f "deploy/helm/raggie/values-$profile.yaml" > "$RUNNER_TEMP/helm-$profile.yaml"
+          done
+          uv run --no-project --with "pytest==9.0.3" --with "pyyaml==6.0.3" \
+            pytest -q -p no:cacheprovider scripts/ci
+          uv run --no-project --with "pyyaml==6.0.3" python scripts/ci/check_web_env.py \
+            --compose "$RUNNER_TEMP/compose-core.json" \
+            --k8s "$RUNNER_TEMP/k8s/dev.yaml" --k8s "$RUNNER_TEMP/k8s/prod.yaml" \
+            --k8s "$RUNNER_TEMP/helm-single.yaml" --k8s "$RUNNER_TEMP/helm-ha.yaml"
+      - name: prod TLS contract (hosts, issuer, HSTS/cookie settings)
+        run: bash deploy/k8s/tests/tls_test.sh
+      # One overlay per run: both render the same objects, which kube-linter
+      # would otherwise cross-match (e.g. a prod PDB against a dev Deployment).
+      - name: kube-linter (rendered overlays)
+        run: |
+          go install "golang.stackrox.io/kube-linter/cmd/kube-linter@${KUBE_LINTER_VERSION}"
+          for overlay in dev prod; do
+            kube-linter lint "$RUNNER_TEMP/k8s/$overlay.yaml"
+          done

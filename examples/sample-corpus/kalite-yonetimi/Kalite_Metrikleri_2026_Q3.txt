@@ -1,0 +1,124 @@
+KALİTE METRİKLERİ RAPORU — 2026 3. ÇEYREK
+=========================================
+
+Temmuz–Eylül 2026 yazılım kalitesi ve teslimat göstergeleri
+
+Doküman No: KAL-RAP-2026-Q3
+Hazırlayan: Pınar Yalçın, Kalite Uzmanı
+Gözden geçiren: Selin Arslan, Kalite Müdürü
+Dönem: 01.07.2026 – 30.09.2026
+Yayın Tarihi: 08.10.2026
+Gizlilik: Şirket İçi
+
+
+1. Yönetici Özeti
+-----------------
+
+Üçüncü çeyrekte müşteriye ulaşan (kaçan) hata sayısı 14'e düştü; ikinci
+çeyrekte bu sayı 22 idi. Değişiklik başarısızlık oranı %5,8'den %4,1'e
+geriledi ve Sev-1/Sev-2 olaylarda ortalama düzeltme süresi (MTTR) 1 saat 12
+dakika oldu. İkinci çeyreğin MTTR değeri 2 saat 35 dakikaydı; bu değeri 17
+Nisan 2026'daki 167 dakikalık veritabanı kesintisi yukarı çekmişti.
+
+Çeyrek boyunca 7 sürüm treni çıkarıldı ve v3.4, 15 Eylül 2026'da planlanan
+tarihte yayınlandı. Hotfix sayısı 5'ten 2'ye indi. Kalite kapısı için bir
+muafiyet onaylandı (v3.4 öncesi, K2 toplam kapsam kriteri; toplam kapsam %69,4
+ölçüldü).
+
+
+2. Göstergeler
+--------------
+
+Gösterge                       2026 Ç2           2026 Ç3           Hedef
+-----------------------------  ----------------  ----------------  ------------------
+Kaçan hata sayısı              22                14                ≤ 15
+Değişiklik başarısızlık oranı  %5,8              %4,1              ≤ %5
+Günlük dağıtım sayısı (ort.)   3,1               3,6               ≥ 3
+MTTR (Sev-1/Sev-2)             2 saat 35 dakika  1 saat 12 dakika  ≤ 1 saat 30 dakika
+Otomatik test sayısı           16.950            18.420            -
+Kararsız (flaky) test oranı    %2,2              %1,3              ≤ %1,5
+Yeni kod kapsamı (ort.)        %81               %84               ≥ %80
+Sürüm treni sayısı             6                 7                 -
+Hotfix sayısı                  5                 2                 ≤ 3
+Değişiklik teslim süresi       3,1 gün           2,4 gün           ≤ 3 gün
+
+
+3. Kaçan Hataların Dağılımı
+---------------------------
+
+Q3'teki 14 kaçan hatanın 6'sı raporlama ve dışa aktarma modülünde, 4'ü
+entegrasyonlar (e-Fatura ve webhook) tarafında, 3'ü mobil uygulamada ve 1'i
+yetkilendirme katmanında görüldü. Yetkilendirme hatası P2 olarak
+sınıflandırıldı: bir rol değişikliğinin önbellekte 10 dakika gecikmeyle
+uygulanmasıydı; başka kiracının verisine erişim söz konusu olmadı.
+
+Raporlama modülündeki hata yoğunluğu, Q3 müşteri memnuniyeti anketinde en çok
+şikâyet edilen konunun rapor dışa aktarma performansı olmasıyla örtüşmektedir.
+v3.4 ile yeniden yazılan dışa aktarma altyapısının etkisi Q4 raporunda
+ölçülecektir.
+
+
+3.1 Sürüm Trenleri
+..................
+
+Tren tarihi  Sürüm   Kapı kararı      Kaçan hata
+-----------  ------  ---------------  ----------
+07.07.2026   v3.3.4  Go               2
+21.07.2026   v3.3.5  Go               3
+04.08.2026   v3.3.6  Koşullu Go       1
+18.08.2026   v3.3.7  Go               2
+01.09.2026   v3.3.8  Go               1
+15.09.2026   v3.4.0  Go (muafiyetli)  4
+29.09.2026   v3.4.1  Go               1
+
+4 Ağustos 2026 treninde verilen Koşullu Go kararının koşulu, e-Fatura
+entegrasyonundaki bir P3 hatanın düzeltmesinin aynı gün 18:00'e kadar
+staging'de doğrulanmasıydı; koşul 17:20'de karşılandı. v3.4.0 sonrasında
+görülen 4 kaçan hatanın 3'ü yeni dışa aktarma altyapısıyla ilgiliydi ve v3.4.1
+ile giderildi.
+
+
+4. Test Otomasyonu
+------------------
+
+Otomatik test sayısı çeyrek içinde 1.470 artarak 18.420'ye ulaştı. Bunların
+yaklaşık %71'i birim, %22'si entegrasyon ve %7'si uçtan uca testtir. Kararsız
+test oranı, Temmuz'da başlatılan karantina uygulamasıyla %1,3'e indi: art arda
+üç koşuda farklı sonuç veren test otomatik olarak karantinaya alınıyor ve
+sahibine 5 iş günü süre veriliyor. Uçtan uca test paketinin süresi 41
+dakikadan 27 dakikaya kısaldı.
+
+
+5. Olaylar
+----------
+
+Q3'te Sev-1 olay yaşanmadı. 3 adet Sev-2 olay kaydedildi; en uzunu 19 Ağustos
+2026'da e-posta bildirim kuyruğunda 48 dakikalık gecikmeydi. Tüm Sev-2 olaylar
+için olay sonrası analiz 5 iş günü içinde tamamlandı.
+
+
+6. Q4 2026 Öncelikleri
+----------------------
+
+  - Toplam kod kapsamını %70'in üzerine kalıcı olarak çıkarmak (v3.4'te
+    muafiyet gerekti).
+  - Hotfix sayısını çeyrekte en fazla 3'te tutmak.
+  - Yük testini Nebula Assist trafiğini de içerecek şekilde v3.4 üzerinde
+    tekrarlamak.
+  - ISO/IEC 27001 kapsam genişletme başvurusu için FRA-1 kontrol kanıtlarını
+    hazırlamak.
+  - 15 Aralık – 5 Ocak sürüm dondurma dönemi öncesinde v3.5'i 8 Aralık 2026'da
+    çıkarmak.
+
+
+7. Tanımlar
+-----------
+
+  - Kaçan hata: üretimde müşteri veya izleme tarafından tespit edilen, sürüm
+    öncesi testlerde yakalanmamış hata.
+  - Değişiklik başarısızlık oranı: geri alma, hotfix veya olayla sonuçlanan
+    üretim dağıtımlarının toplam dağıtımlara oranı.
+  - MTTR: Sev-1 ve Sev-2 olaylarda olayın başlangıcından hizmetin normale
+    dönmesine kadar geçen ortalama süre.
+  - Değişiklik teslim süresi: birleştirmeden üretime çıkışa kadar geçen medyan
+    süre.

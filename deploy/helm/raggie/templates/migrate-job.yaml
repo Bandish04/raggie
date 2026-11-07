@@ -1,0 +1,95 @@
+{{- if and .Values.migrations.enabled .Values.controlPlane.enabled }}
+{{- $sel := dict "root" . "component" "migrate" -}}
+{{- $c := .Values.controlPlane -}}
+{{- /* A hook needs the database to exist before the release's resources. On
+       upgrade it always does; on first install only an external one does. */ -}}
+{{- $hook := or .Release.IsUpgrade (eq .Values.postgresql.mode "external") -}}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  # Fixed hook name so before-hook-creation replaces the previous run; the
+  # first-install Job has its own name and is pruned by the first upgrade.
+  name: {{ include "raggie.componentName" $sel }}{{ if not $hook }}-install{{ end }}
+  labels:
+    {{- include "raggie.componentLabels" $sel | nindent 4 }}
+  {{- if $hook }}
+  annotations:
+    helm.sh/hook: pre-install,pre-upgrade
+    helm.sh/hook-weight: "-5"
+    # Keep the finished Job (and its logs) until the next hook run replaces it.
+    helm.sh/hook-delete-policy: before-hook-creation
+  {{- end }}
+spec:
+  backoffLimit: {{ .Values.migrations.backoffLimit }}
+  {{- if not $hook }}
+  # Hook Jobs are replaced by the next hook run; the first-install Job expires.
+  ttlSecondsAfterFinished: 86400
+  {{- end }}
+  activeDeadlineSeconds: {{ .Values.migrations.activeDeadlineSeconds }}
+  template:
+    metadata:
+      labels:
+        {{- include "raggie.componentLabels" $sel | nindent 8 }}
+    spec:
+      restartPolicy: Never
+      serviceAccountName: {{ include "raggie.serviceAccountName" . }}
+      automountServiceAccountToken: false
+      {{- include "raggie.imagePullSecrets" . | nindent 6 }}
+      securityContext:
+        {{- include "raggie.podSecurityContext" (dict "root" . "override" $c.podSecurityContext) | nindent 8 }}
+      initContainers:
+        # The release's own database may still be bootstrapping: wait for TCP
+        # instead of burning the Job's backoff budget.
+        - name: wait-for-postgres
+          image: {{ include "raggie.image" (dict "root" . "svc" "control-plane" "image" $c.image) }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          securityContext:
+            {{- include "raggie.containerSecurityContext" . | nindent 12 }}
+          command:
+            - python
+            - -c
+            - |
+              import os, socket, sys, time
+              host, port = os.environ["POSTGRES_HOST"], int(os.environ["POSTGRES_PORT"])
+              deadline = time.monotonic() + 600
+              while time.monotonic() < deadline:
+                  try:
+                      socket.create_connection((host, port), timeout=3).close()
+                      sys.exit(0)
+                  except OSError:
+                      time.sleep(3)
+              print(f"postgres {host}:{port} unreachable", file=sys.stderr)
+              sys.exit(1)
+          env:
+            - name: POSTGRES_HOST
+              value: {{ include "raggie.postgresDirectHost" . | quote }}
+            - name: POSTGRES_PORT
+              value: {{ include "raggie.postgresPort" . | quote }}
+          resources:
+            {{- toYaml .Values.migrations.resources | nindent 12 }}
+      containers:
+        - name: migrate
+          image: {{ include "raggie.image" (dict "root" . "svc" "control-plane" "image" $c.image) }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          securityContext:
+            {{- include "raggie.containerSecurityContext" . | nindent 12 }}
+          command: ["python", "-m", "raggie_control_plane.db.migrate"]
+          {{- if not $hook }}
+          envFrom:
+            - configMapRef:
+                name: {{ include "raggie.fullname" . }}-config
+          {{- end }}
+          env:
+            {{- if $hook }}
+            # Hooks run before the release ConfigMap exists on install.
+            - name: RAGGIE_ENV
+              value: {{ .Values.config.raggieEnv | quote }}
+            {{- end }}
+            {{- include "raggie.databaseEnvDirect" . | nindent 12 }}
+          resources:
+            {{- toYaml .Values.migrations.resources | nindent 12 }}
+          volumeMounts:
+            {{- include "raggie.tmpVolumeMount" . | nindent 12 }}
+      volumes:
+        {{- include "raggie.tmpVolume" . | nindent 8 }}
+{{- end }}

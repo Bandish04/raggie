@@ -1,0 +1,73 @@
+#!/usr/bin/env bash
+# Fake curl for the installer tests: answers /models, /embeddings and /rerank
+# like OpenAI-compatible / Cohere / Voyage / TEI APIs, without network.
+#   FAKE_CURL_LOG       append "METHOD URL auth=<bearer or none>" and the argv here
+#   FAKE_EMBED_DIM      vector size returned by /embeddings (default 1024)
+#   FAKE_EMBED_MODE     bow (hashed bag of words, default) | flip (negate passages)
+#   FAKE_*_STATUS       HTTP status for models / embed / rerank (default 200)
+#   FAKE_CURL_SCAN_DIR  log "LEAK <file>" for every file there holding a bearer
+set -euo pipefail
+if [[ -n "${FAKE_CURL_SCAN_DIR:-}" ]]; then
+  grep -rl 'Authorization: Bearer' "$FAKE_CURL_SCAN_DIR" 2>/dev/null | sed 's/^/LEAK /' >>"${FAKE_CURL_LOG:-/dev/null}" || true
+fi
+method=GET url="" fmt="" body="" auth=none body_file=""
+[[ -z "${FAKE_CURL_LOG:-}" ]] || printf 'ARGV %s\n' "$*" >>"$FAKE_CURL_LOG"
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    -X) method="$2"; shift 2 ;;
+    -H)
+      if [[ "$2" == @* ]]; then
+        a="$(grep -i '^Authorization:' "${2#@}" || true)"
+        [[ -z "$a" ]] || auth="${a#*Bearer }"
+      fi
+      shift 2 ;;
+    --data-binary) body_file="${2#@}"; shift 2 ;;
+    -w) fmt="$2"; shift 2 ;;
+    -m | --retry | -o) shift 2 ;;
+    -*) shift ;;
+    *) url="$1"; shift ;;
+  esac
+done
+if [[ "$body_file" == - ]]; then body="$(cat)"; elif [[ -n "$body_file" ]]; then body="$(cat "$body_file")"; fi
+if [[ -n "${FAKE_CURL_LOG:-}" ]]; then
+  printf '%s %s auth=%s\n' "$method" "$url" "$auth" >>"$FAKE_CURL_LOG"
+  printf 'BODY %s\n' "$body" >>"$FAKE_CURL_LOG"
+fi
+status=404 out='{"error":"not found"}'
+case "$url" in
+  */models)
+    status="${FAKE_MODELS_STATUS:-200}"
+    out='{"object":"list","data":[{"id":"gpt-test","object":"model"},{"id":"other-model","object":"model"}]}'
+    ;;
+  */embeddings)
+    status="${FAKE_EMBED_STATUS:-200}"
+    out="$(python3 - "$body" <<'PY'
+import hashlib, json, math, os, re, sys
+req = json.loads(sys.argv[1])
+dim = int(os.environ.get("FAKE_EMBED_DIM", "1024"))
+flip = os.environ.get("FAKE_EMBED_MODE") == "flip" and len(req["input"]) > 1
+def embed(t):
+    v = [0.0] * dim
+    for tok in re.findall(r"\w+", t.lower()):
+        h = int(hashlib.sha256(tok.encode()).hexdigest(), 16)
+        v[h % dim] += 1.0
+    n = math.sqrt(sum(x * x for x in v)) or 1.0
+    return [(-x if flip else x) / n for x in v]
+print(json.dumps({"object": "list", "model": req["model"],
+                  "data": [{"object": "embedding", "index": i, "embedding": embed(t)} for i, t in enumerate(req["input"])]}))
+PY
+)"
+    ;;
+  */rerank)
+    status="${FAKE_RERANK_STATUS:-200}"
+    if [[ "$body" == *'"texts"'* ]]; then
+      out='[{"index":0,"score":0.92},{"index":1,"score":0.03}]'
+    elif [[ "$body" == *'"top_k"'* ]]; then
+      out='{"data":[{"index":0,"relevance_score":0.9},{"index":1,"relevance_score":0.1}]}'
+    else
+      out='{"results":[{"index":0,"relevance_score":0.9},{"index":1,"relevance_score":0.1}]}'
+    fi
+    ;;
+esac
+printf '%s' "$out"
+[[ -z "$fmt" ]] || printf '\n%s' "$status"

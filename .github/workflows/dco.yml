@@ -1,0 +1,32 @@
+name: DCO
+
+# Developer Certificate of Origin (CONTRIBUTING.md): every commit in a pull
+# request needs a Signed-off-by trailer matching its author. Plain git
+# (scripts/ci/check-dco.sh), no app and no third-party action. The job's name,
+# "DCO", is the required status check (scripts/github/settings.py).
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dco-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  dco:
+    name: DCO
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      # Full history: the PR's base and head commits must both be present.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: check sign-offs
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: bash scripts/ci/check-dco.sh "$BASE_SHA" "$HEAD_SHA"

@@ -1,0 +1,30 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: raggie
+
+# Base resources: namespace, shared config/secrets, stateful data plane, app
+# workloads, the two Ingresses, and PDBs. NetworkPolicies (A4), autoscaling
+# (HPA/KEDA) and observability are layered on top in later P7 steps / overlays.
+resources:
+  - namespace.yaml
+  - config.yaml
+  - datastores.yaml
+  - apps.yaml
+  - ingress.yaml
+  - pdb.yaml
+  - networkpolicy.yaml
+
+# The external widget loader + bundle, mounted read-only on the edge at
+# /app/widget (served at /widgets/). Built from the same source as compose.
+configMapGenerator:
+  - name: raggie-widget
+    files:
+      - embed.js=../../../widget/embed.js
+generatorOptions:
+  disableNameSuffixHash: true
+
+labels:
+  - includeSelectors: false
+    pairs:
+      app.kubernetes.io/part-of: raggie

@@ -1,0 +1,41 @@
+# pre-commit hooks: `pipx install pre-commit && pre-commit install`.
+# Hook repos are frozen to commit SHAs (`pre-commit autoupdate --freeze`).
+# The ruff pin matches the version locked in the services' uv.lock files.
+
+# Unpublished material, and Go fuzz corpora whose bytes are test inputs.
+exclude: ^(internal/|CC-Session-Logs/)|/testdata/
+
+repos:
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: 83d9cd684c87d95d656c1458ef04895a7f1cbd8e # frozen: v8.30.1
+    hooks:
+      - id: gitleaks
+
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: 3e8a8703264a2f4a69428a0aa4dcb512790b2c8c # frozen: v6.0.0
+    hooks:
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+        args: [--markdown-linebreak-ext=md]
+      - id: check-added-large-files
+      - id: check-merge-conflict
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: 0671d8ab202c4ac093b78433ae5baf74f3fc7246 # frozen: v0.15.15
+    hooks:
+      - id: ruff-check
+        files: ^(services|libs)/
+
+  - repo: local
+    hooks:
+      - id: gofmt
+        name: gofmt
+        language: system
+        entry: gofmt -w
+        files: \.go$
+      - id: i18n-check
+        name: i18n catalogs have identical keys
+        language: system
+        entry: bash -c 'cd web && node --test lib/i18n-check.test.ts'
+        pass_filenames: false
+        files: ^web/(messages/|lib/i18n-check)

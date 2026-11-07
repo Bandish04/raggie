@@ -1,0 +1,18 @@
+# cert-manager's HTTP-01 challenge runs a temporary solver pod in this namespace,
+# which the base default-deny-ingress would isolate: the ingress controller could
+# not reach it and certificates would never be issued. Admit only the controller
+# to the solver port. Not needed (but harmless) with a DNS-01 ClusterIssuer.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-acme-http01-solver
+spec:
+  podSelector:
+    matchLabels: { acme.cert-manager.io/http01-solver: "true" }
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels: { kubernetes.io/metadata.name: ingress-nginx }
+      ports:
+        - { protocol: TCP, port: 8089 }

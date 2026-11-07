@@ -1,0 +1,67 @@
+#!/usr/bin/env bash
+# SPDX-License-Identifier: Apache-2.0
+# Fake gh for the scripts/github tests: `gh api` only, no network.
+#   GH_LOG     every call is appended as "METHOD PATH" (query string included)
+#   GH_STATE   repo state: rulesets.json, labels.json, issues.json (JSON arrays).
+#              GETs are served from it, creates/updates change it, and each
+#              request body is copied to $GH_STATE/bodies/<call number>.json.
+#   GH_FAIL    "METHOD PATH" to answer with an HTTP 422 error (optional)
+#   GH_OWNER_TYPE  GET users/{owner} .type: User (default) or Organization
+# shellcheck disable=SC2016 # jq programs, expanded by jq
+set -euo pipefail
+[[ "${1:-}" == api ]] || { echo "fake gh: only 'gh api' is supported: $*" >&2; exit 2; }
+shift
+method=GET path="" jq_expr="" input=""
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    -X | --method) method="$2"; shift 2 ;;
+    -q | --jq) jq_expr="$2"; shift 2 ;;
+    --input) input="$2"; shift 2 ;;
+    --paginate | --silent) shift ;;
+    -H | --header) shift 2 ;;
+    -*) echo "fake gh: unsupported flag $1" >&2; exit 2 ;;
+    *) path="$1"; shift ;;
+  esac
+done
+
+printf '%s %s\n' "$method" "$path" >>"$GH_LOG"
+n="$(wc -l <"$GH_LOG" | tr -d ' ')"
+body='{}'
+if [[ -n "$input" ]]; then
+  body="$(cat "$input")"
+  mkdir -p "$GH_STATE/bodies"
+  printf '%s\n' "$body" >"$GH_STATE/bodies/$n.json"
+fi
+if [[ "${GH_FAIL:-}" == "$method $path" ]]; then
+  echo "gh: Validation Failed (HTTP 422)" >&2
+  exit 1
+fi
+
+state() { local f="$GH_STATE/$1.json"; [[ -f "$f" ]] || echo '[]' >"$f"; printf '%s' "$f"; }
+update() { local f; f="$(state "$1")"; jq "$2" --argjson b "$body" --arg k "${3:-}" "$f" >"$f.new"; mv "$f.new" "$f"; }
+
+route="${path%%\?*}"
+resp='{}'
+case "$method $route" in
+  "GET users/"*) resp="{\"login\": \"${route#users/}\", \"type\": \"${GH_OWNER_TYPE:-User}\"}" ;;
+  "GET repos/"*/*/rulesets) resp="$(cat "$(state rulesets)")" ;;
+  "GET repos/"*/*/labels) resp="$(cat "$(state labels)")" ;;
+  "GET repos/"*/*/issues) resp="$(cat "$(state issues)")" ;;
+  "GET repos/"*/*) resp='{"full_name":"fake/repo"}' ;;
+  "POST repos/"*/*/rulesets)
+    update rulesets '. + [{id: (length + 1), name: $b.name, source_type: "Repository"}]' ;;
+  "PUT repos/"*/*/rulesets/*)
+    update rulesets 'map(if (.id | tostring) == $k then .name = $b.name else . end)' "${route##*/}" ;;
+  "POST repos/"*/*/labels)
+    update labels '. + [{name: $b.name, color: $b.color, description: $b.description}]' ;;
+  "PATCH repos/"*/*/labels/*)
+    update labels 'map(if (.name | @uri) == $k then .color = $b.color | .description = $b.description else . end)' \
+      "${route##*/}" ;;
+  "POST repos/"*/*/issues)
+    update issues '. + [{title: $b.title}]' ;;
+esac
+if [[ -n "$jq_expr" ]]; then
+  jq -r "$jq_expr" <<<"$resp"
+else
+  printf '%s\n' "$resp"
+fi

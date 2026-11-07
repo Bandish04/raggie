@@ -1,0 +1,42 @@
+# gitleaks configuration: the default ruleset plus path allowlists for content
+# that is never published or is synthetic test data. Used by CI (full history)
+# and the pre-commit hook.
+title = "raggie gitleaks config"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Unpublished local material, vendored deps and synthetic fixtures"
+paths = [
+  # Gitignored, never published (private notes / session logs / scratch).
+  '''^internal/''',
+  '''^CC-Session-Logs/''',
+  # Dependency and build trees.
+  '''(^|/)node_modules/''',
+  '''(^|/)\.venv/''',
+  '''(^|/)\.next/''',
+  '''(^|/)__pycache__/''',
+  '''(^|/)test-results/''',
+  # Lockfiles carry integrity hashes, not secrets.
+  '''(^|/)(pnpm-lock\.yaml|uv\.lock|go\.sum)$''',
+]
+
+# Test suites carry deliberately fake credentials (password-policy fixtures,
+# "strong secret" config tests, fuzz seeds with sample JWTs). Exempt only test
+# files and only for the generic/JWT rules — a real provider key (AWS, GitHub,
+# Slack, …) in a test file is still reported.
+[[rules]]
+id = "generic-api-key"
+[[rules.allowlists]]
+description = "fake credentials in test suites"
+paths = ['''(^|/)tests?/.*\.(py|sh)$''', '''_test\.go$''', '''\.test\.ts$''']
+[[rules.allowlists]]
+description = "golden eval set: expected answers and document names, no credentials"
+paths = ['''^examples/golden/.*\.ya?ml$''']
+
+[[rules]]
+id = "jwt"
+[[rules.allowlists]]
+description = "sample tokens in test suites / fuzz seeds"
+paths = ['''(^|/)tests?/.*\.py$''', '''_test\.go$''', '''\.test\.ts$''']

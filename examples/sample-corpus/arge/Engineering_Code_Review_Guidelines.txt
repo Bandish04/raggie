@@ -1,0 +1,134 @@
+ENGINEERING CODE REVIEW GUIDELINES
+==================================
+
+How we branch, review and merge code in the NebulaCRM repositories
+
+Document No: ARGE-ENG-007
+Version: 2.3
+Owner: Ayşe Demir, R&D Manager
+Maintainer: Okan Yıldız, Senior Software Engineer
+Effective: 2 February 2026
+Issue Date: 2026-02-02
+Classification: Internal
+
+
+1. Why we review
+----------------
+
+Code review is our main defence against defects reaching customers and our
+main way of sharing knowledge across the Istanbul and Ankara teams. A review
+is a conversation about the change, not a gate to be passed as fast as
+possible. These guidelines apply to every repository in the NebulaCRM
+organisation, including infrastructure code.
+
+
+2. Branching
+------------
+
+  - main is always releasable. Nobody pushes to main directly; branch
+    protection enforces this.
+  - Feature branches are named feature/NCRM-1234-short-desc, where NCRM-1234
+    is the work item key. Bug fixes use fix/NCRM-1234-short-desc.
+  - Branches older than 14 days without activity are reported in the weekly
+    engineering digest and should be rebased or closed.
+  - Release branches are cut automatically as release/YYYY.MM.DD on the
+    morning of each release train.
+
+
+3. Pull request size and description
+------------------------------------
+
+Keep pull requests small. The soft limit is 400 changed lines, excluding
+generated files and lock files. Larger changes must be split, or the author
+must explain in the description why they cannot be. Every pull request
+description states what changed, why, how it was tested and how to roll it
+back.
+
+
+4. Approvals
+------------
+
+Changes in critical paths require 2 approvals: billing, authentication,
+tenancy and permission checks, data migrations and anything that touches
+encryption keys. At least one of the two approvers must be listed in the
+CODEOWNERS file for that path. All other changes require 1 approval. Authors
+cannot approve their own pull requests, and an approval is dismissed
+automatically when new commits are pushed.
+
+
+5. Review turnaround
+--------------------
+
+Reviewers give a first response within 1 business day. If a pull request has
+waited longer than that, the author may ask in the team channel for another
+reviewer. Small, urgent fixes can be reviewed synchronously in a short call,
+but the approval must still be recorded on the pull request.
+
+
+6. What reviewers check
+-----------------------
+
+  1. Correctness: does the code do what the work item asks, including edge
+     cases?
+  2. Tenancy: every query that reads customer data is scoped by tenant_id; new
+     tables have a row-level security policy.
+  3. Tests: new code comes with unit tests; the release quality gate expects
+     at least 80% coverage on new code.
+  4. Security: no secrets in code, input is validated, and new dependencies
+     have been checked by the dependency scanner.
+  5. Operability: logs, metrics and alerts are adequate, and the change can be
+     rolled back.
+  6. Readability: names, structure and comments make the next change easy.
+
+
+7. Merging
+----------
+
+We use squash merge so that main has one commit per pull request; the squash
+commit message starts with the work item key. CI must be green before merging:
+build, unit and integration tests, linters, the dependency scanner and the
+static security scan. Merging with a failing check requires approval from the
+on-call lead and a follow-up work item.
+
+
+8. Release train
+----------------
+
+We ship on a release train every 2 weeks on Tuesday. The release branch is cut
+at 09:00 on release day from main; anything merged after that waits for the
+next train. Release candidates must pass the quality gate run by the Quality
+team before the Go/No-Go meeting at 14:00. No trains run during the year-end
+freeze.
+
+
+9. Hotfixes
+-----------
+
+A hotfix is allowed only for a Sev-1 or Sev-2 production issue or a security
+fix that cannot wait for the next train. Hotfix branches are created from the
+latest release tag as hotfix/NCRM-1234-short-desc, need approval from the on-
+call lead in addition to the normal review rules, and are merged back into
+main within 1 business day after deployment. Every hotfix is listed in the
+weekly quality report.
+
+
+10. Review etiquette
+--------------------
+
+  - Comment on the code, not the person. Prefer questions to commands.
+  - Mark optional suggestions with the prefix nit: so the author knows they do
+    not block the merge.
+  - Resolve your own comments once they are addressed; do not leave threads
+    open for the author to guess.
+  - If a discussion goes past three rounds, move it to a call and write the
+    outcome on the pull request.
+
+
+11. Change log
+--------------
+
+Version  Date        Change
+-------  ----------  -------------------------
+2.1      2025-03-03  Branch naming convention
+2.2      2025-09-15  Tenancy check added
+2.3      2026-02-02  Two approvals for tenancy

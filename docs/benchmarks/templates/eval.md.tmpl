@@ -1,0 +1,70 @@
+{{template "header" .}}
+
+What is measured: every selected question of the golden set (`{{.Body.Golden}}`)
+is asked as a new conversation. The documents behind the streamed `sources`
+(best chunk rank per document) are compared with the expected documents, the
+answer's `[n]` markers are resolved to the documents they cite, and — with a
+real LLM — the answer text is matched against the expected answer and its
+variants.
+
+| Chat LLM | Embeddings provider | Reranker (`RERANK_ENABLED`) | Questions | Answerable | Unanswerable | Failed turns |
+|---|---|---|---|---|---|---|
+| `{{.Body.LLM}}` | `{{.Body.Embeddings}}` | `{{.Body.Rerank}}` | {{.Body.Asked}} | {{.Body.Overall.Summary.Answerable}} | {{.Body.Overall.Summary.Unanswerable}} | {{.Body.Failed}} |
+{{- with .Body.Ingest}}
+
+Corpus indexed: {{.Succeeded}}/{{.Files}} documents{{if .Failed}} ({{len .Failed}} failed: {{range $i, $f := .Failed}}{{if $i}}, {{end}}`{{$f}}`{{end}}){{end}} in {{.Wall}}.
+{{- end}}
+{{- $ks := .Body.Ks}}
+
+## Retrieval (answerable questions)
+
+| Subset | n | MRR@10 |{{range $ks}} recall@{{.}} |{{end}}{{range $ks}} hit@{{.}} |{{end}} citation hit |
+|---|---|---|{{range $ks}}---|{{end}}{{range $ks}}---|{{end}}---|
+{{template "eval-retrieval-row" .Body.Overall}}
+{{- range .Body.Subsets}}{{$dim := .Name}}{{range .Groups}}
+{{template "eval-retrieval-row" .}}
+{{- end}}{{end}}
+
+recall@k: mean share of expected documents in the top k · hit@k: share of
+questions with at least one expected document in the top k · MRR@10: mean
+reciprocal rank of the first expected document · citation hit: share of
+answers citing at least one expected document.
+
+## Answers
+{{if .Body.AnswerMetrics}}
+| Subset | answerable n | exact match | contains match | false abstention | unanswerable n | correct abstention |
+|---|---|---|---|---|---|---|
+{{template "eval-answer-row" .Body.Overall}}
+{{- range .Body.Subsets}}{{range .Groups}}
+{{template "eval-answer-row" .}}
+{{- end}}{{end}}
+
+exact: the normalized answer equals the expected answer or a variant ·
+contains: one of them occurs in the answer · false abstention: answerable
+questions the model declined · correct abstention: unanswerable questions it
+declined.
+{{else}}
+Not reported for this run (chat LLM `{{.Body.LLM}}`): see the caveats.
+{{end}}
+{{- with .Body.Answers}}
+## Eval worker scores
+
+{{if .Error}}Not collected: {{cell .Error}}.{{else -}}
+{{.Evaluated}}/{{.Requested}} answers scored by the eval worker.
+
+| Metric | Mean | n |
+|---|---|---|
+| faithfulness | {{f3 .Faithfulness}} | {{.FaithfulnessN}} |
+| citation validity | {{f3 .CitationValidity}} | {{.ValidityN}} |
+| citation coverage | {{f3 .CitationCoverage}} | {{.CoverageN}} |
+{{- end}}
+{{end}}
+{{- template "environment" .}}
+
+{{template "config" .}}
+{{- template "notes" .}}
+
+Per-question results (answers included): the `.csv` and `.json` files next to this report.
+
+{{- define "eval-retrieval-row"}}| {{.Name}} | {{.Summary.Answerable}} |{{if .Summary.Answerable}} {{f3 .Summary.MRR10}} |{{range .Recall}} {{f3 .Value}} |{{end}}{{range .Hit}} {{f3 .Value}} |{{end}} {{f3 .Summary.CitationHit}} |{{else}} — |{{range .Recall}} — |{{end}}{{range .Hit}} — |{{end}} — |{{end}}{{end}}
+{{- define "eval-answer-row"}}| {{.Name}} | {{.Summary.Answerable}} |{{if .Summary.Answerable}} {{pct .Summary.ExactMatch}} | {{pct .Summary.ContainsMatch}} | {{pct .Summary.FalseAbstention}} |{{else}} — | — | — |{{end}} {{.Summary.Unanswerable}} | {{if .Summary.Unanswerable}}{{pct .Summary.CorrectAbstention}}{{else}}—{{end}} |{{end}}

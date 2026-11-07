@@ -1,0 +1,508 @@
+# Default values for the raggie chart. Install with one of the profiles:
+#   helm install raggie deploy/helm/raggie -f deploy/helm/raggie/values-single.yaml
+#   helm install raggie deploy/helm/raggie -f deploy/helm/raggie/values-ha.yaml
+# The defaults below are shared by both profiles; the profile files override
+# replicas, datastores and secrets handling.
+
+# single | ha. `ha` makes the chart refuse unsafe combinations (generated
+# secrets, single-replica datastores) at render time.
+profile: single
+
+nameOverride: ""
+fullnameOverride: ""
+
+image:
+  # Images resolve to <registry>/<prefix><service>:<tag>.
+  registry: ghcr.io/alicangunduz
+  prefix: raggie-
+  # Empty uses .Chart.AppVersion.
+  tag: ""
+  pullPolicy: IfNotPresent
+  pullSecrets: []
+
+# Default StorageClass for every datastore PVC ("" = cluster default).
+storageClass: ""
+
+serviceAccount:
+  create: true
+  name: ""
+  annotations: {}
+
+# Applied to every app pod unless a component overrides it. Images run as a
+# fixed non-root UID; Pod Security "restricted" compatible.
+podSecurityContext:
+  runAsNonRoot: true
+  seccompProfile:
+    type: RuntimeDefault
+containerSecurityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  runAsNonRoot: true
+  capabilities:
+    drop: ["ALL"]
+  seccompProfile:
+    type: RuntimeDefault
+
+# Spread every multi-replica workload across zones and nodes. whenUnsatisfiable
+# is ScheduleAnyway for zones (single-zone clusters still schedule) and
+# DoNotSchedule for hostnames when topologySpread.strictHostname is true.
+topologySpread:
+  enabled: true
+  strictHostname: false
+
+# ── Secrets ────────────────────────────────────────────────────────────────
+secrets:
+  # Name of an existing Secret holding the app keys below (env name == key).
+  # Required in the ha profile; the chart never renders secret values except
+  # the throwaway development Secret below.
+  #   JWT_SECRET, WIDGET_TOKEN_SECRET, INTERNAL_API_SECRET   (required, >=32 bytes)
+  #   SETUP_TOKEN, LLMAAS_API_KEY                            (recommended)
+  #   METRICS_TOKEN, QDRANT_API_KEY, REDIS_PASSWORD,
+  #   INTEGRATION_ENC_KEY, OIDC_CLIENT_SECRET, SCIM_BEARER_TOKEN,
+  #   BRAVE_API_KEY                                          (optional)
+  #   POSTGRES_PASSWORD                                      (postgresql.mode=internal)
+  existingSecret: ""
+  # single profile only: render a random development Secret (kept stable
+  # across upgrades via lookup). Refused when profile=ha.
+  generateDevSecret: false
+
+# ── Shared runtime configuration (non-secret env) ──────────────────────────
+config:
+  # production keeps the weak-secret guards on. development disables them.
+  raggieEnv: production
+  defaultLocale: en
+  # IANA zone for new users/scheduled tasks when none is given (DEFAULT_TIMEZONE).
+  defaultTimezone: UTC
+  logLevel: info
+  publicWebUrl: ""
+  # Base URL the widget snippet points at (public edge host).
+  widgetEmbedBaseUrl: ""
+  cookieSecure: true
+  enableHsts: true
+  trustedProxyCidrs: "10.0.0.0/8,172.16.0.0/12,192.168.0.0/16"
+  llm:
+    # Any OpenAI-compatible /v1 endpoint. mockLLM.enabled overrides it.
+    baseUrl: "https://llm.example.com/v1"
+    chatModel: "gpt-oss-120b"
+    reasoningModels: "gpt-oss-120b"
+    modelProfilesJson: ""
+  retrieval:
+    candidateK: "80"
+    contextK: "12"
+    maxChunksPerDocument: "3"
+    rerankEnabled: "true"
+    # Chunks sent to the reranker. 12 suits CPU rerankers within the edge's
+    # 5 s rerank budget; raise it for GPU/cloud rerankers.
+    rerankCandidateK: "12"
+  # Extra non-secret env for every app container.
+  extraEnv: {}
+
+# ── Embeddings gateway mode (Phase 2 env names) ────────────────────────────
+embeddingsGateway:
+  # local: in-pod fastembed/ONNX. openai_compatible: forward to a cloud API.
+  provider: local
+  model: ""
+  dim: "1024"
+  upstreamBaseUrl: ""
+  requestExtraJson: ""
+  queryExtraJson: ""
+  passageExtraJson: ""
+  # local | cohere | voyage | tei | none
+  rerankerProvider: local
+  rerankerModel: ""
+  rerankerUpstreamUrl: ""
+  # "" = default (on in cloud mode, with a remote reranker and whenever
+  # INTERNAL_API_SECRET is set, which this chart always provides). "false" with an
+  # upstream API key refuses to boot outside development.
+  requireAuth: ""
+  # Separate Secret mounted ONLY into the embeddings pods, holding
+  # EMBEDDINGS_UPSTREAM_API_KEY and/or RERANKER_UPSTREAM_API_KEY.
+  existingSecret: ""
+
+# ── Application components ─────────────────────────────────────────────────
+edge:
+  enabled: true
+  replicas: 1
+  image: { repository: "", tag: "" }
+  port: 8080
+  metricsPort: 9090
+  # Pods get terminationGracePeriodSeconds = shutdown.terminationGraceSeconds.
+  # delay: keep serving while readiness fails so endpoints drop the pod;
+  # drain: wait for in-flight SSE streams (clients get a reconnect event).
+  shutdown:
+    delaySeconds: 5
+    drainSeconds: 25
+    terminationGraceSeconds: 35
+  # Budgets for the edge's calls to the embeddings gateway (query embedding
+  # and rerank; rerank fails open). EMBED_QUERY_TIMEOUT_MS / RERANK_TIMEOUT_MS.
+  embedQueryTimeoutMs: 8000
+  rerankTimeoutMs: 5000
+  # Wait for an LLM endpoint's first byte (LLMAAS_RESPONSE_HEADER_TIMEOUT_SECONDS,
+  # [5,900]). CPU-only local models need ~300.
+  llmResponseHeaderTimeoutSeconds: 60
+  podSecurityContext: { runAsUser: 65532, runAsGroup: 65532, fsGroup: 65532 }
+  resources:
+    requests: { cpu: 250m, memory: 256Mi }
+    limits: { memory: 512Mi }
+  env: {}
+  pdb: { enabled: false, minAvailable: 1 }
+  hpa:
+    enabled: false
+    minReplicas: 2
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 70
+    # Extra HPA metrics, e.g. raggie_edge_active_streams via prometheus-adapter:
+    # - type: Pods
+    #   pods:
+    #     metric: { name: raggie_edge_active_streams }
+    #     target: { type: AverageValue, averageValue: "500" }
+    extraMetrics: []
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+controlPlane:
+  enabled: true
+  replicas: 1
+  image: { repository: "", tag: "" }
+  port: 8000
+  podSecurityContext: { runAsUser: 10001, runAsGroup: 10001, fsGroup: 10001 }
+  resources:
+    requests: { cpu: 250m, memory: 256Mi }
+    limits: { memory: 512Mi }
+  env: {}
+  pdb: { enabled: false, minAvailable: 1 }
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+web:
+  enabled: true
+  replicas: 1
+  image: { repository: "", tag: "" }
+  port: 3000
+  podSecurityContext: { runAsUser: 1001, runAsGroup: 1001, fsGroup: 1001 }
+  resources:
+    requests: { cpu: 100m, memory: 256Mi }
+    limits: { memory: 512Mi }
+  env: {}
+  pdb: { enabled: false, minAvailable: 1 }
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+embeddings:
+  enabled: true
+  replicas: 1
+  # Empty tag = <image.tag or AppVersion>-local for embeddingsGateway.provider
+  # local (ONNX models baked in) and -slim for cloud mode (BM25 only).
+  image: { repository: "", tag: "" }
+  port: 8002
+  # ONNX intra-op threads per pod (EMBEDDINGS_ONNX_THREADS; OMP_NUM_THREADS
+  # does not limit onnxruntime). Empty = 4, capped at resources.limits.cpu.
+  onnxThreads: ""
+  # Per Redis call of the query-embedding cache (EMBEDDINGS_CACHE_TIMEOUT_SECONDS).
+  cacheTimeoutSeconds: "0.5"
+  podSecurityContext: { runAsUser: 10001, runAsGroup: 10001, fsGroup: 10001 }
+  resources:
+    requests: { cpu: "1", memory: 2Gi }
+    limits: { memory: 4Gi }
+  env: {}
+  pdb: { enabled: false, minAvailable: 1 }
+  hpa:
+    enabled: false
+    minReplicas: 2
+    maxReplicas: 6
+    targetCPUUtilizationPercentage: 70
+    extraMetrics: []
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+# One image, three Deployments (WORKER_ROLE). The scheduler is safe at >1
+# replica: due tasks are claimed with SELECT ... FOR UPDATE SKIP LOCKED.
+workers:
+  image: { repository: "", tag: "" }
+  healthPort: 9100
+  # Worker -> embeddings gateway for batched passage embedding (honours 429
+  # Retry-After): EMBED_TIMEOUT_SECONDS / EMBED_MAX_RETRIES.
+  embedTimeoutSeconds: 180
+  embedMaxRetries: 6
+  podSecurityContext: { runAsUser: 10001, runAsGroup: 10001, fsGroup: 10001 }
+  env: {}
+  ingestion:
+    enabled: true
+    replicas: 1
+    resources:
+      requests: { cpu: 500m, memory: 512Mi }
+      limits: { memory: 2Gi }
+    pdb: { enabled: false, minAvailable: 1 }
+    env: {}
+  eval:
+    enabled: true
+    replicas: 1
+    # Faithfulness judge: total seconds per non-streaming call
+    # (EVAL_LLM_TIMEOUT_SECONDS, [5,900]; a timeout leaves the answer unscored)
+    # and concurrent calls per pod (EVAL_MAX_CONCURRENCY). For a CPU-only local
+    # model shared with chat use ~300 and 1.
+    llmTimeoutSeconds: 30
+    maxConcurrency: 4
+    resources:
+      requests: { cpu: 100m, memory: 256Mi }
+      limits: { memory: 512Mi }
+    pdb: { enabled: false, minAvailable: 1 }
+    env: {}
+  scheduler:
+    enabled: true
+    replicas: 1
+    # Total seconds per run-task call to the edge (SCHEDULER_TASK_TIMEOUT_SECONDS,
+    # [10,1800]); must exceed the edge's llmResponseHeaderTimeoutSeconds plus
+    # generation (~420 with a CPU-only local model).
+    taskTimeoutSeconds: 150
+    resources:
+      requests: { cpu: 50m, memory: 128Mi }
+      limits: { memory: 256Mi }
+    pdb: { enabled: false, minAvailable: 1 }
+    env: {}
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+# Optional event-driven autoscaling. Requires KEDA installed separately. A
+# component scaled by KEDA gets no chart HPA (KEDA owns the HPA).
+keda:
+  enabled: false
+  pollingInterval: 15
+  cooldownPeriod: 300
+  prometheusServerAddress: "http://prometheus-operated.observability.svc:9090"
+  edge:
+    enabled: false
+    minReplicas: 2
+    maxReplicas: 20
+    # Target in-flight SSE streams per replica.
+    activeStreamsPerReplica: "500"
+  ingestion:
+    enabled: false
+    minReplicas: 2
+    maxReplicas: 10
+    # Pending entries in the ingestion consumer group per replica.
+    lagPerReplica: "20"
+  eval:
+    enabled: false
+    minReplicas: 2
+    maxReplicas: 6
+    lagPerReplica: "50"
+
+# ── Database migrations ────────────────────────────────────────────────────
+# `python -m raggie_control_plane.db.migrate` (pg_advisory_lock, idempotent).
+# Upgrades run it as a pre-upgrade hook before any pod rolls. On first
+# install the database usually belongs to this release (cnpg/internal) and does
+# not exist yet at pre-install time, so the Job is a plain resource that waits
+# for the database; control-plane stays unready (/readyz reflects the schema)
+# until it finishes. postgresql.mode=external uses pre-install as well.
+migrations:
+  enabled: true
+  backoffLimit: 6
+  activeDeadlineSeconds: 900
+  resources:
+    requests: { cpu: 100m, memory: 128Mi }
+    limits: { memory: 256Mi }
+
+# ── PostgreSQL ─────────────────────────────────────────────────────────────
+postgresql:
+  # internal: single-replica StatefulSet (dev/demo) · cnpg: CloudNativePG
+  # Cluster CR (operator installed separately) · external: bring your own.
+  mode: internal
+  database: raggie
+  user: raggie
+  internal:
+    image: docker.io/library/postgres:17.11-alpine@sha256:266d3c257594e195b309ae9d1805e54c788f1d7b375f56bf6c367aac6c917e7b
+    persistence: { size: 10Gi, storageClass: "" }
+    resources:
+      requests: { cpu: 250m, memory: 256Mi }
+      limits: { memory: 1Gi }
+  cnpg:
+    instances: 3
+    imageName: ghcr.io/cloudnative-pg/postgresql:17.11@sha256:70664ebcfa1100361b5bdc28bbf06fdbe08db2dc4ad7bd14de33c5e05fe8ea8e
+    # Quorum-based synchronous replication (method any, number 1): a commit
+    # waits for at least one standby, so a primary loss loses no acked write.
+    synchronous: { method: any, number: 1, dataDurability: required }
+    storage: { size: 20Gi, storageClass: "" }
+    walStorage: { enabled: false, size: 10Gi, storageClass: "" }
+    resources:
+      requests: { cpu: 500m, memory: 1Gi }
+      limits: { memory: 2Gi }
+    parameters:
+      max_connections: "300"
+      shared_buffers: 256MB
+    # Connect the apps through a PgBouncer Pooler instead of <cluster>-rw
+    # (the migration Job always uses <cluster>-rw: it holds a session lock).
+    pooler: { enabled: false, instances: 2, poolMode: transaction, defaultPoolSize: "50" }
+    backup:
+      enabled: false
+      # plugin: Barman Cloud Plugin (ObjectStore CR, CNPG >= 1.26).
+      # barmanObjectStore: legacy in-tree backup (deprecated by CNPG).
+      method: plugin
+      destinationPath: "s3://raggie-backups/postgres"
+      endpointURL: ""
+      # Secret with ACCESS_KEY_ID / ACCESS_SECRET_KEY.
+      s3CredentialsSecret: ""
+      retentionPolicy: "30d"
+      # Six-field cron (seconds first): daily base backup at 02:00.
+      schedule: "0 0 2 * * *"
+  external:
+    host: ""
+    port: 5432
+    sslmode: prefer
+    # Secret holding the password of postgresql.user.
+    existingSecret: ""
+    passwordKey: password
+
+# ── Valkey (Redis-compatible) ──────────────────────────────────────────────
+valkey:
+  # standalone: one pod (dev) · sentinel: N valkey + N sentinels in a
+  # StatefulSet · external: bring your own (set external.*).
+  mode: standalone
+  image: docker.io/valkey/valkey:8.1.11-alpine@sha256:2602ace2be6569bc2bbb06f873776516ab9089821525be34f4305c67eb9db02a
+  replicas: 3
+  # Require REDIS_PASSWORD (from secrets.existingSecret / dev secret).
+  auth: false
+  appendonly: true
+  persistence: { size: 2Gi, storageClass: "" }
+  resources:
+    requests: { cpu: 100m, memory: 256Mi }
+    limits: { memory: 512Mi }
+  # sentinel mode: the primary refuses writes unless a replica acknowledged
+  # replication within maxLag seconds, bounding what a failover can lose
+  # (replication stays asynchronous). 0 disables.
+  minReplicasToWrite: 1
+  minReplicasMaxLag: 10
+  sentinel:
+    masterSet: raggie
+    quorum: 2
+    downAfterMilliseconds: 5000
+    failoverTimeout: 30000
+  # Optional stable "always the current primary" endpoint for clients that do
+  # not speak Sentinel (all Raggie services do): HAProxy health-checks
+  # role:master and routes only to it. REDIS_URL then points at it.
+  haproxy:
+    enabled: false
+    replicas: 2
+    image: docker.io/library/haproxy:3.2.26-alpine@sha256:5893840576071e6217cd52ebdcc14f454c6f7a631056fa6f4e0f40d3cac4215b
+    resources:
+      requests: { cpu: 50m, memory: 64Mi }
+      limits: { memory: 128Mi }
+  external:
+    url: ""
+    sentinelAddrs: ""
+    sentinelMaster: ""
+
+# ── Qdrant ─────────────────────────────────────────────────────────────────
+vectordb:
+  # single: in-chart one-node StatefulSet · cluster: official qdrant chart
+  # dependency (set qdrant.enabled=true) · external: set url.
+  mode: single
+  url: ""
+  # Applied by the workers when a chunk collection is first created
+  # (QDRANT_REPLICATION_FACTOR / _SHARD_NUMBER / _WRITE_CONSISTENCY_FACTOR);
+  # existing collections keep their layout.
+  replicationFactor: 1
+  shardNumber: 1
+  writeConsistencyFactor: 1
+  single:
+    image: docker.io/qdrant/qdrant:v1.20.0@sha256:9bfc89f9914fc14876a88c05270685921a55b8877b254a98bcc1cc2f0a424cd2
+    persistence: { size: 10Gi, storageClass: "" }
+    resources:
+      requests: { cpu: 250m, memory: 512Mi }
+      limits: { memory: 2Gi }
+
+# Official qdrant/qdrant chart values (only used when qdrant.enabled=true).
+qdrant:
+  enabled: false
+  # No anonymous usage telemetry (same as the single-node StatefulSet).
+  env:
+    - name: QDRANT__TELEMETRY_DISABLED
+      value: "true"
+
+# ── Object storage (S3 API) ────────────────────────────────────────────────
+s3:
+  # external (recommended) · seaweedfs: in-chart single-node SeaweedFS.
+  mode: seaweedfs
+  bucket: raggie-uploads
+  external:
+    # host:port, no scheme.
+    endpoint: ""
+    useSSL: true
+  # Secret with the access/secret key (keys below). Required for external.
+  existingSecret: ""
+  accessKeyKey: accessKey
+  secretKeyKey: secretKey
+  seaweedfs:
+    image: docker.io/chrislusf/seaweedfs:4.52@sha256:57877e32bb90073b37dc109b438ba66e84fd5ed9ced5f5c04f56444ef243ce59
+    persistence: { size: 20Gi, storageClass: "" }
+    resources:
+      requests: { cpu: 100m, memory: 256Mi }
+      limits: { memory: 1Gi }
+
+# ── Mock LLM (offline demo / CI chaos runs) ────────────────────────────────
+mockLLM:
+  enabled: false
+  image: { repository: "", tag: "" }
+  port: 11435
+  env: {}
+
+# ── Ingress ────────────────────────────────────────────────────────────────
+# Two hosts keep the A4 boundary: the public chat/widget host routes only the
+# edge paths; the admin host routes the web app.
+ingress:
+  enabled: false
+  className: nginx
+  clusterIssuer: ""
+  # Annotations for both Ingresses (on top of the cert-manager one).
+  annotations: {}
+  public:
+    host: chat.raggie.example
+    tlsSecretName: raggie-public-tls
+    # SSE: stream without buffering and keep long chats open. Defaults target
+    # ingress-nginx; set the equivalents for your controller.
+    annotations:
+      nginx.ingress.kubernetes.io/proxy-buffering: "off"
+      nginx.ingress.kubernetes.io/proxy-request-buffering: "off"
+      nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+      nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+      nginx.ingress.kubernetes.io/proxy-body-size: "25m"
+  admin:
+    host: admin.raggie.example
+    tlsSecretName: raggie-admin-tls
+    annotations:
+      nginx.ingress.kubernetes.io/proxy-buffering: "off"
+      nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+      nginx.ingress.kubernetes.io/proxy-body-size: "64m"
+
+# ── NetworkPolicies ────────────────────────────────────────────────────────
+networkPolicy:
+  enabled: true
+  # Where the ingress controller pods run. Also admitted to cert-manager's
+  # HTTP-01 solver pods (TCP 8089) when ingress.clusterIssuer is set.
+  ingressControllerNamespaceSelector:
+    matchLabels: { kubernetes.io/metadata.name: ingress-nginx }
+  # Who may scrape metrics ports.
+  metricsNamespaceSelector:
+    matchLabels: { kubernetes.io/metadata.name: observability }
+  # Namespace of the CloudNativePG operator (it calls instance pods on 8000).
+  cnpgOperatorNamespace: cnpg-system
+  # Kubernetes API server CIDRs (CNPG instances talk to the API). Empty allows
+  # TCP 443/6443 to any address for the CNPG pods only.
+  kubeApiCidrs: []
+  # Optional egress allow-lists. NetworkPolicy cannot match hostnames: list
+  # the provider CIDRs here, or use an FQDN-capable CNI policy (Cilium,
+  # Calico Enterprise) instead. An empty list with allowAll=false denies.
+  egress:
+    llm: { allowAll: false, cidrs: [], ports: [443] }
+    cloudEmbeddings: { allowAll: false, cidrs: [], ports: [443] }
+    # S3 endpoint for s3.mode=external and CNPG backups.
+    s3: { allowAll: false, cidrs: [], ports: [443] }
+    # Web search / page reads / MCP from the edge.
+    edgeInternet: { allowAll: false, cidrs: [], ports: [443] }
+    # OIDC token/userinfo/JWKS endpoints from the control-plane.
+    oidc: { allowAll: false, cidrs: [], ports: [443] }

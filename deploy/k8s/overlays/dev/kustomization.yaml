@@ -1,0 +1,34 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Development overlay: single replicas, no autoscaling, locally-built :dev
+# images (as in compose). NetworkPolicies still apply where the CNI enforces them.
+resources:
+  - ../../base
+
+replicas:
+  - { name: edge, count: 1 }
+  - { name: control-plane, count: 1 }
+  - { name: web, count: 1 }
+
+# Throwaway development secrets (the base defines none) and development mode,
+# which is the only mode in which services accept placeholder secrets.
+secretGenerator:
+  - name: raggie-secrets
+    envs: [secrets.dev.env]
+generatorOptions:
+  disableNameSuffixHash: true
+
+patches:
+  # Single replicas: a minAvailable=1 PDB would block every node drain.
+  - target: { kind: PodDisruptionBudget }
+    patch: |-
+      $patch: delete
+      apiVersion: policy/v1
+      kind: PodDisruptionBudget
+      metadata: { name: unused }
+  - target: { kind: ConfigMap, name: raggie-config }
+    patch: |-
+      - op: replace
+        path: /data/RAGGIE_ENV
+        value: development

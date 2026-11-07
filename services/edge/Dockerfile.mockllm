@@ -1,0 +1,23 @@
+# syntax=docker/dockerfile:1
+# SPDX-License-Identifier: Apache-2.0
+# raggie/mockllm — deterministic OpenAI-compatible chat server for CI e2e and
+# offline demos. Build from services/edge:
+#   docker build -f Dockerfile.mockllm -t raggie/mockllm .
+
+# ── build stage ──────────────────────────────────────────────
+FROM golang:1.26-alpine AS build
+WORKDIR /src
+
+COPY go.mod go.sum ./
+RUN go mod download
+
+COPY . .
+RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/mockllm ./cmd/mockllm
+
+# ── runtime stage ────────────────────────────────────────────
+FROM gcr.io/distroless/static-debian12:nonroot
+COPY --from=build /out/mockllm /mockllm
+EXPOSE 11435
+USER nonroot:nonroot
+HEALTHCHECK --interval=10s --timeout=3s --retries=3 CMD ["/mockllm", "-healthcheck"]
+ENTRYPOINT ["/mockllm"]

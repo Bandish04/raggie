@@ -1,0 +1,113 @@
+name: Install smoke
+
+# Clean-install matrix (plan Faz 10): the real installer on fresh runners, then
+# first admin, one cited golden answer through the front door, and an upgrade
+# re-run. Results: docs/benchmarks/install-matrix.md (job summaries).
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "47 2 * * *" # daily, 02:47 UTC
+  pull_request:
+    paths:
+      - web/public/install.sh
+      - deploy/scripts/**
+      - deploy/compose/**
+      - scripts/install-smoke.sh
+      - scripts/ha/mock_embeddings.py
+      - .github/workflows/install-smoke.yml
+
+permissions: read-all
+
+concurrency:
+  group: install-smoke-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  # Fast gate: the installer's own unit tests and shellcheck (no Docker).
+  installer-tests:
+    name: installer unit tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+      - name: shellcheck
+        run: |
+          uvx --from "shellcheck-py==0.11.0.1" shellcheck -x -P SCRIPTDIR \
+            web/public/install.sh deploy/scripts/*.sh deploy/scripts/tests/*.sh \
+            deploy/scripts/tests/fakes/curl scripts/install-smoke.sh
+      - name: installer tests
+        run: bash deploy/scripts/tests/run.sh
+
+  install:
+    name: ${{ matrix.os }} / ${{ matrix.embeddings }} embeddings / mock LLM
+    needs: installer-tests
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, ubuntu-24.04, ubuntu-24.04-arm]
+        embeddings: [local]
+        include:
+          # Cloud mode without secrets: the `custom` preset against the offline
+          # OpenAI-compatible mock upstream (scripts/ha/mock_embeddings.py). It
+          # exercises consent, the live probe, the -slim image and key isolation.
+          # Real providers (OpenAI/Jina/Voyage/Mistral) need API keys and are
+          # deliberately not run here.
+          - os: ubuntu-24.04
+            embeddings: cloud
+    env:
+      SMOKE_OS: ${{ matrix.os }}
+      SMOKE_EMBEDDINGS: ${{ matrix.embeddings }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # The local-embeddings image bakes ~2 GB of ONNX models; runners start with
+      # little free disk.
+      - name: free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL \
+            /usr/local/share/boost /usr/local/.ghcup || true
+          docker system prune -af >/dev/null || true
+          df -h /
+      - name: host facts
+        run: scripts/install-smoke.sh facts
+      - name: start the mock embeddings upstream (cloud leg)
+        if: matrix.embeddings == 'cloud'
+        run: |
+          nohup python3 scripts/ha/mock_embeddings.py --port 18089 >"$RUNNER_TEMP/mock-embeddings.log" 2>&1 &
+          # Containers reach the host through its primary address.
+          url="http://$(hostname -I | awk '{print $1}'):18089/v1"
+          for _ in $(seq 30); do curl -fsS "${url%/v1}/healthz" >/dev/null && break; sleep 1; done
+          echo "SMOKE_MOCK_EMBEDDINGS_URL=$url" >> "$GITHUB_ENV"
+      - name: build images (cache warm-up; not part of A1)
+        run: scripts/install-smoke.sh prebuild
+      - name: fresh install (A1 timing)
+        run: scripts/install-smoke.sh install
+      - name: first admin with the setup token
+        run: scripts/install-smoke.sh bootstrap
+      - name: golden question with citations
+        run: scripts/install-smoke.sh golden
+      - name: upgrade re-run
+        run: scripts/install-smoke.sh upgrade
+      - name: collect logs
+        if: failure()
+        run: scripts/install-smoke.sh logs "$RUNNER_TEMP/install-smoke-logs"
+      - name: upload logs
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: install-smoke-logs-${{ matrix.os }}-${{ matrix.embeddings }}
+          path: ${{ runner.temp }}/install-smoke-logs
+          if-no-files-found: warn
+          retention-days: 7
+      - name: job summary
+        if: always()
+        run: scripts/install-smoke.sh report
+      - name: tear down
+        if: always()
+        run: scripts/install-smoke.sh down

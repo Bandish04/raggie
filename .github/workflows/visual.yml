@@ -1,0 +1,59 @@
+name: Visual baselines
+
+# Manual only: records the Linux screenshot baselines for web/e2e/visual-audit.spec.ts
+# and uploads them as an artifact. Download it, copy the PNGs into
+# web/e2e/visual-audit.spec.ts-snapshots/ and commit them; until then the visual
+# checks skip ("no <platform> baseline").
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: "22"
+
+jobs:
+  baselines:
+    name: record visual baselines (linux)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+        with:
+          package_json_file: web/package.json
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+          cache-dependency-path: web/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec playwright install --with-deps chromium
+      - run: pnpm build
+        env:
+          NEXT_TELEMETRY_DISABLED: "1"
+      # The production build on :3000; playwright.config.ts reuses an existing
+      # server there instead of starting `pnpm dev`. Public pages only: the
+      # authenticated surfaces skip without E2E_EMAIL / E2E_PASSWORD.
+      - name: record baselines
+        env:
+          NEXT_TELEMETRY_DISABLED: "1"
+        run: |
+          pnpm exec next start -p 3000 > "$RUNNER_TEMP/next.log" 2>&1 &
+          for _ in $(seq 1 60); do
+            curl -fsS -o /dev/null http://localhost:3000/healthz && break
+            sleep 1
+          done
+          pnpm test:visual:update
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: visual-baselines-linux
+          path: web/e2e/visual-audit.spec.ts-snapshots/*-linux.png
+          if-no-files-found: error
+          retention-days: 14

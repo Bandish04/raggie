@@ -1,0 +1,20 @@
+# SPDX-License-Identifier: Apache-2.0
+# Repository labels applied by apply-settings.sh: name<TAB>color (6 hex)<TAB>description.
+# Covers the issue templates (.github/ISSUE_TEMPLATE) and the seed issues.
+bug	d73a4a	Something does not work as documented
+enhancement	a2eeef	New feature or improvement
+performance	f9d0c4	Latency, throughput or resource usage
+triage	ededed	New, not yet reviewed by a maintainer
+good first issue	7057ff	Small, well-scoped; a good start for new contributors
+help wanted	008672	Maintainers welcome a contribution here
+area:ingestion	1d76db	Upload, parsing, chunking and indexing
+area:retrieval	1d76db	Hybrid search, reranking and context assembly
+area:edge	1d76db	Go chat/RAG edge service
+area:web	1d76db	Next.js admin and chat UI
+area:widget	1d76db	Embeddable support widget
+area:installer	1d76db	install.sh and the configure scripts
+area:helm	1d76db	Helm chart and Kubernetes manifests
+area:docs	0075ca	Documentation
+area:eval	1d76db	Golden set, retrieval eval and answer quality
+area:observability	1d76db	Metrics, logs and tracing
+area:i18n	1d76db	Translations and locale handling

@@ -1,0 +1,91 @@
+{{- if eq .Values.vectordb.mode "single" }}
+{{- $sel := dict "root" . "component" "qdrant" -}}
+{{- $q := .Values.vectordb.single -}}
+# Single-node Qdrant for the single profile. The ha profile uses the official
+# qdrant chart (dependency) in distributed mode instead.
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "raggie.componentName" $sel }}
+  labels:
+    {{- include "raggie.componentLabels" $sel | nindent 4 }}
+spec:
+  selector:
+    {{- include "raggie.selectorLabels" $sel | nindent 4 }}
+  ports:
+    - name: http
+      port: 6333
+      targetPort: http
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "raggie.componentName" $sel }}
+  labels:
+    {{- include "raggie.componentLabels" $sel | nindent 4 }}
+spec:
+  serviceName: {{ include "raggie.componentName" $sel }}
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "raggie.selectorLabels" $sel | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "raggie.componentLabels" $sel | nindent 8 }}
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 2000
+        fsGroup: 3000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: qdrant
+          image: {{ $q.image }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          securityContext:
+            {{- include "raggie.containerSecurityContext" . | nindent 12 }}
+          env:
+            - name: QDRANT__STORAGE__SNAPSHOTS_PATH
+              value: /qdrant/storage/snapshots
+            - name: QDRANT__TELEMETRY_DISABLED
+              value: "true"
+            - name: QDRANT__SERVICE__API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "raggie.appSecretName" . }}
+                  key: QDRANT_API_KEY
+                  optional: true
+          ports:
+            - name: http
+              containerPort: 6333
+          readinessProbe:
+            httpGet: { path: /readyz, port: http }
+            periodSeconds: 5
+          livenessProbe:
+            httpGet: { path: /livez, port: http }
+            initialDelaySeconds: 15
+            periodSeconds: 15
+          resources:
+            {{- toYaml $q.resources | nindent 12 }}
+          volumeMounts:
+            - name: storage
+              mountPath: /qdrant/storage
+            {{- include "raggie.tmpVolumeMount" . | nindent 12 }}
+      volumes:
+        {{- include "raggie.tmpVolume" . | nindent 8 }}
+  volumeClaimTemplates:
+    - metadata:
+        name: storage
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        {{- with ($q.persistence.storageClass | default .Values.storageClass) }}
+        storageClassName: {{ . }}
+        {{- end }}
+        resources:
+          requests:
+            storage: {{ $q.persistence.size }}
+{{- end }}

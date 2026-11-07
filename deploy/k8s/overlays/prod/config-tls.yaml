@@ -1,0 +1,17 @@
+# HTTPS settings for the shared ConfigMap. These two URLs are the single place
+# to set your hostnames: the Ingress rule and TLS hosts are derived from them
+# (kustomization.yaml `replacements`). Origins only: https://<host>, no path,
+# port or trailing slash.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: raggie-config
+data:
+  # Admin + internal chat (web): the CSRF origin check accepts this origin.
+  PUBLIC_WEB_URL: "https://admin.raggie.example"
+  # Public chat/widget surface (edge): the origin the widget snippet loads from.
+  WIDGET_EMBED_BASE_URL: "https://chat.raggie.example"
+  # Cookies only over HTTPS and Strict-Transport-Security on pages; both require
+  # the TLS above to be in place.
+  COOKIE_SECURE: "true"
+  ENABLE_HSTS: "true"

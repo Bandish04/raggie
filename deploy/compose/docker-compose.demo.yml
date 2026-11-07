@@ -1,0 +1,25 @@
+# Zero-key demo overlay: points every LLM consumer at the deterministic mock LLM
+# (profile `mock`), so the whole stack runs with no API key and no GPU.
+#   make up-demo        (= core + mock profiles with this file layered on top)
+# Answers are templated and cite the retrieved sources; use a real
+# OpenAI-compatible endpoint (or Ollama) for real answers.
+services:
+  edge:
+    environment:
+      LLMAAS_BASE_URL: http://mockllm:11435/v1
+      LLMAAS_API_KEY: mock
+    depends_on:
+      mockllm:
+        condition: service_healthy
+  eval-worker:
+    environment:
+      LLMAAS_BASE_URL: http://mockllm:11435/v1
+      LLMAAS_API_KEY: mock
+  scheduler-worker:
+    environment:
+      LLMAAS_BASE_URL: http://mockllm:11435/v1
+      LLMAAS_API_KEY: mock
+  control-plane:
+    environment:
+      LLMAAS_BASE_URL: http://mockllm:11435/v1
+      LLMAAS_API_KEY: mock

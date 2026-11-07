@@ -1,0 +1,540 @@
+{{- define "raggie.np.peer" -}}
+- podSelector:
+    matchLabels:
+      {{- include "raggie.selectorLabels" . | nindent 6 }}
+{{- end -}}
+
+{{/* dict root components(list) -> one podSelector peer matching any of them */}}
+{{- define "raggie.np.selectorAny" -}}
+matchLabels:
+  app.kubernetes.io/name: {{ include "raggie.name" .root }}
+  app.kubernetes.io/instance: {{ .root.Release.Name }}
+matchExpressions:
+  - key: app.kubernetes.io/component
+    operator: In
+    values: {{ toJson .components }}
+{{- end -}}
+
+{{- define "raggie.np.peers" -}}
+- podSelector:
+    {{- include "raggie.np.selectorAny" . | nindent 4 }}
+{{- end -}}
+
+{{/* Optional external egress block {allowAll, cidrs, ports}. */}}
+{{- define "raggie.np.external" -}}
+{{- if or .allowAll .cidrs }}
+- to:
+    {{- if .allowAll }}
+    - ipBlock: { cidr: 0.0.0.0/0 }
+    {{- else }}
+    {{- range .cidrs }}
+    - ipBlock: { cidr: {{ . }} }
+    {{- end }}
+    {{- end }}
+  ports:
+    {{- range .ports }}
+    - { protocol: TCP, port: {{ . }} }
+    {{- end }}
+{{- end }}
+{{- end -}}
+
+{{/* Egress to every datastore endpoint the release may use. */}}
+{{- define "raggie.np.datastoreEgress" -}}
+{{- $root := .root -}}
+{{- $pg := .postgres | default false -}}
+{{- $redis := .redis | default false -}}
+{{- $qdrant := .qdrant | default false -}}
+{{- $s3 := .s3 | default false -}}
+{{- if $pg }}
+- to:
+    {{- if eq $root.Values.postgresql.mode "internal" }}
+    {{- include "raggie.np.peer" (dict "root" $root "component" "postgres") | nindent 4 }}
+    {{- else if eq $root.Values.postgresql.mode "cnpg" }}
+    - podSelector:
+        matchLabels: { cnpg.io/cluster: {{ include "raggie.cnpgClusterName" $root }} }
+    - podSelector:
+        matchLabels: { cnpg.io/poolerName: {{ include "raggie.cnpgClusterName" $root }}-pooler-rw }
+    {{- else }}
+    - ipBlock: { cidr: 0.0.0.0/0 }
+    {{- end }}
+  ports:
+    - { protocol: TCP, port: {{ include "raggie.postgresPort" $root }} }
+{{- end }}
+{{- if $redis }}
+- to:
+    {{- if eq $root.Values.valkey.mode "external" }}
+    - ipBlock: { cidr: 0.0.0.0/0 }
+    {{- else }}
+    {{- include "raggie.np.peer" (dict "root" $root "component" "valkey") | nindent 4 }}
+    {{- include "raggie.np.peer" (dict "root" $root "component" "valkey-primary") | nindent 4 }}
+    {{- end }}
+  ports:
+    - { protocol: TCP, port: 6379 }
+    - { protocol: TCP, port: 26379 }
+{{- end }}
+{{- if $qdrant }}
+- to:
+    {{- if eq $root.Values.vectordb.mode "single" }}
+    {{- include "raggie.np.peer" (dict "root" $root "component" "qdrant") | nindent 4 }}
+    {{- else if eq $root.Values.vectordb.mode "cluster" }}
+    - podSelector:
+        matchLabels: { app.kubernetes.io/name: qdrant, app.kubernetes.io/instance: {{ $root.Release.Name }} }
+    {{- else }}
+    - ipBlock: { cidr: 0.0.0.0/0 }
+    {{- end }}
+  ports:
+    - { protocol: TCP, port: 6333 }
+{{- end }}
+{{- if $s3 }}
+{{- if eq $root.Values.s3.mode "seaweedfs" }}
+- to:
+    {{- include "raggie.np.peer" (dict "root" $root "component" "seaweedfs") | nindent 4 }}
+  ports:
+    - { protocol: TCP, port: 8333 }
+{{- else }}
+{{- include "raggie.np.external" $root.Values.networkPolicy.egress.s3 }}
+{{- end }}
+{{- end }}
+{{- end -}}
+
+{{- define "raggie.np.llmEgress" -}}
+{{- if .Values.mockLLM.enabled }}
+- to:
+    {{- include "raggie.np.peer" (dict "root" . "component" "mockllm") | nindent 4 }}
+  ports:
+    - { protocol: TCP, port: {{ .Values.mockLLM.port }} }
+{{- end }}
+{{- include "raggie.np.external" .Values.networkPolicy.egress.llm }}
+{{- end -}}
+
+{{- define "raggie.np.kubeApiEgress" -}}
+- to:
+    {{- if .Values.networkPolicy.kubeApiCidrs }}
+    {{- range .Values.networkPolicy.kubeApiCidrs }}
+    - ipBlock: { cidr: {{ . }} }
+    {{- end }}
+    {{- else }}
+    - ipBlock: { cidr: 0.0.0.0/0 }
+    {{- end }}
+  ports:
+    - { protocol: TCP, port: 443 }
+    - { protocol: TCP, port: 6443 }
+{{- end -}}
+
+{{- if .Values.networkPolicy.enabled }}
+{{- $root := . -}}
+{{- $np := .Values.networkPolicy -}}
+{{- $fn := include "raggie.fullname" . -}}
+{{- $apps := list "edge" "control-plane" "ingestion-worker" "eval-worker" "scheduler" "migrate" -}}
+# Default-deny for every pod in the namespace (install the chart into its own
+# namespace), then explicit allow-lists. A4: the admin API (control-plane)
+# admits only the web app; the public edge has no route to it.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ $fn }}-default-deny
+  labels:
+    {{- include "raggie.labels" . | nindent 4 }}
+spec:
+  podSelector: {}
+  policyTypes: [Ingress, Egress]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ $fn }}-allow-dns
+  labels:
+    {{- include "raggie.labels" . | nindent 4 }}
+spec:
+  podSelector: {}
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - namespaceSelector: {}
+          podSelector:
+            matchLabels: { k8s-app: kube-dns }
+      ports:
+        - { protocol: UDP, port: 53 }
+        - { protocol: TCP, port: 53 }
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ $fn }}-edge
+  labels:
+    {{- include "raggie.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "raggie.selectorLabels" (dict "root" . "component" "edge") | nindent 6 }}
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            {{- toYaml $np.ingressControllerNamespaceSelector | nindent 12 }}
+        {{- include "raggie.np.peers" (dict "root" . "components" (list "web" "scheduler")) | nindent 8 }}
+      ports:
+        - { protocol: TCP, port: {{ .Values.edge.port }} }
+    - from:
+        - namespaceSelector:
+            {{- toYaml $np.metricsNamespaceSelector | nindent 12 }}
+      ports:
+        - { protocol: TCP, port: {{ .Values.edge.metricsPort }} }
+  egress:
+    {{- include "raggie.np.datastoreEgress" (dict "root" . "postgres" true "redis" true "qdrant" true) | nindent 4 }}
+    - to:
+        {{- include "raggie.np.peer" (dict "root" . "component" "embeddings") | nindent 8 }}
+      ports:
+        - { protocol: TCP, port: {{ .Values.embeddings.port }} }
+    {{- include "raggie.np.llmEgress" . | nindent 4 }}
+    {{- include "raggie.np.external" $np.egress.edgeInternet | nindent 4 }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ $fn }}-control-plane
+  labels:
+    {{- include "raggie.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "raggie.selectorLabels" (dict "root" . "component" "control-plane") | nindent 6 }}
+  policyTypes: [Ingress, Egress]
+  ingress:
+    # Admin app only. The edge is deliberately absent (A4).
+    - from:
+        {{- include "raggie.np.peer" (dict "root" . "component" "web") | nindent 8 }}
+      ports:
+        - { protocol: TCP, port: {{ .Values.controlPlane.port }} }
+    - from:
+        - namespaceSelector:
+            {{- toYaml $np.metricsNamespaceSelector | nindent 12 }}
+      ports:
+        - { protocol: TCP, port: {{ .Values.controlPlane.port }} }
+  egress:
+    {{- include "raggie.np.datastoreEgress" (dict "root" . "postgres" true "redis" true "qdrant" true "s3" true) | nindent 4 }}
+    - to:
+        {{- include "raggie.np.peer" (dict "root" . "component" "embeddings") | nindent 8 }}
+      ports:
+        - { protocol: TCP, port: {{ .Values.embeddings.port }} }
+    {{- include "raggie.np.llmEgress" . | nindent 4 }}
+    {{- include "raggie.np.external" $np.egress.oidc | nindent 4 }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ $fn }}-web
+  labels:
+    {{- include "raggie.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "raggie.selectorLabels" (dict "root" . "component" "web") | nindent 6 }}
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            {{- toYaml $np.ingressControllerNamespaceSelector | nindent 12 }}
+      ports:
+        - { protocol: TCP, port: {{ .Values.web.port }} }
+  egress:
+    - to:
+        {{- include "raggie.np.peer" (dict "root" . "component" "edge") | nindent 8 }}
+      ports:
+        - { protocol: TCP, port: {{ .Values.edge.port }} }
+    - to:
+        {{- include "raggie.np.peer" (dict "root" . "component" "control-plane") | nindent 8 }}
+      ports:
+        - { protocol: TCP, port: {{ .Values.controlPlane.port }} }
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ $fn }}-embeddings
+  labels:
+    {{- include "raggie.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "raggie.selectorLabels" (dict "root" . "component" "embeddings") | nindent 6 }}
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        {{- include "raggie.np.peers" (dict "root" . "components" (list "edge" "control-plane" "ingestion-worker" "eval-worker" "scheduler")) | nindent 8 }}
+      ports:
+        - { protocol: TCP, port: {{ .Values.embeddings.port }} }
+  egress:
+    {{- include "raggie.np.datastoreEgress" (dict "root" . "redis" true) | nindent 4 }}
+    {{- include "raggie.np.external" $np.egress.cloudEmbeddings | nindent 4 }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ $fn }}-workers
+  labels:
+    {{- include "raggie.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    {{- include "raggie.np.selectorAny" (dict "root" . "components" (list "ingestion-worker" "eval-worker" "scheduler")) | nindent 4 }}
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            {{- toYaml $np.metricsNamespaceSelector | nindent 12 }}
+      ports:
+        - { protocol: TCP, port: {{ .Values.workers.healthPort }} }
+  egress:
+    {{- include "raggie.np.datastoreEgress" (dict "root" . "postgres" true "redis" true "qdrant" true "s3" true) | nindent 4 }}
+    - to:
+        {{- include "raggie.np.peer" (dict "root" . "component" "embeddings") | nindent 8 }}
+      ports:
+        - { protocol: TCP, port: {{ .Values.embeddings.port }} }
+    # The scheduler triggers due tasks on the edge's internal endpoint.
+    - to:
+        {{- include "raggie.np.peer" (dict "root" . "component" "edge") | nindent 8 }}
+      ports:
+        - { protocol: TCP, port: {{ .Values.edge.port }} }
+    {{- include "raggie.np.llmEgress" . | nindent 4 }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ $fn }}-migrate
+  labels:
+    {{- include "raggie.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "raggie.selectorLabels" (dict "root" . "component" "migrate") | nindent 6 }}
+  policyTypes: [Egress]
+  egress:
+    {{- include "raggie.np.datastoreEgress" (dict "root" . "postgres" true) | nindent 4 }}
+{{- if .Values.mockLLM.enabled }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ $fn }}-mockllm
+  labels:
+    {{- include "raggie.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "raggie.selectorLabels" (dict "root" . "component" "mockllm") | nindent 6 }}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        {{- include "raggie.np.peers" (dict "root" . "components" (list "edge" "control-plane" "ingestion-worker" "eval-worker" "scheduler")) | nindent 8 }}
+      ports:
+        - { protocol: TCP, port: {{ .Values.mockLLM.port }} }
+{{- end }}
+{{- /* ── Datastores ── */}}
+{{- if eq .Values.postgresql.mode "internal" }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ $fn }}-postgres
+  labels:
+    {{- include "raggie.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "raggie.selectorLabels" (dict "root" . "component" "postgres") | nindent 6 }}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        {{- include "raggie.np.peers" (dict "root" . "components" $apps) | nindent 8 }}
+      ports:
+        - { protocol: TCP, port: 5432 }
+{{- end }}
+{{- if eq .Values.postgresql.mode "cnpg" }}
+{{- $cluster := include "raggie.cnpgClusterName" . }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ $fn }}-cnpg
+  labels:
+    {{- include "raggie.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels: { cnpg.io/cluster: {{ $cluster }} }
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        {{- include "raggie.np.peers" (dict "root" . "components" $apps) | nindent 8 }}
+        - podSelector:
+            matchLabels: { cnpg.io/poolerName: {{ $cluster }}-pooler-rw }
+      ports:
+        - { protocol: TCP, port: 5432 }
+    # Replication between instances + the operator's status/instance API.
+    - from:
+        - podSelector:
+            matchLabels: { cnpg.io/cluster: {{ $cluster }} }
+        - namespaceSelector:
+            matchLabels: { kubernetes.io/metadata.name: {{ $np.cnpgOperatorNamespace }} }
+      ports:
+        - { protocol: TCP, port: 5432 }
+        - { protocol: TCP, port: 8000 }
+  egress:
+    - to:
+        - podSelector:
+            matchLabels: { cnpg.io/cluster: {{ $cluster }} }
+      ports:
+        - { protocol: TCP, port: 5432 }
+        - { protocol: TCP, port: 8000 }
+    - to:
+        - namespaceSelector:
+            matchLabels: { kubernetes.io/metadata.name: {{ $np.cnpgOperatorNamespace }} }
+    {{- include "raggie.np.kubeApiEgress" . | nindent 4 }}
+    {{- if .Values.postgresql.cnpg.backup.enabled }}
+    {{- include "raggie.np.external" $np.egress.s3 | nindent 4 }}
+    {{- end }}
+{{- if .Values.postgresql.cnpg.pooler.enabled }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ $fn }}-cnpg-pooler
+  labels:
+    {{- include "raggie.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels: { cnpg.io/poolerName: {{ $cluster }}-pooler-rw }
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        {{- include "raggie.np.peers" (dict "root" . "components" $apps) | nindent 8 }}
+      ports:
+        - { protocol: TCP, port: 5432 }
+  egress:
+    - to:
+        - podSelector:
+            matchLabels: { cnpg.io/cluster: {{ $cluster }} }
+      ports:
+        - { protocol: TCP, port: 5432 }
+    {{- include "raggie.np.kubeApiEgress" . | nindent 4 }}
+{{- end }}
+{{- end }}
+{{- if ne .Values.valkey.mode "external" }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ $fn }}-valkey
+  labels:
+    {{- include "raggie.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    {{- include "raggie.np.selectorAny" (dict "root" . "components" (list "valkey" "valkey-primary")) | nindent 4 }}
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        {{- include "raggie.np.peers" (dict "root" . "components" (list "edge" "control-plane" "ingestion-worker" "eval-worker" "scheduler" "embeddings" "valkey" "valkey-primary")) | nindent 8 }}
+      ports:
+        - { protocol: TCP, port: 6379 }
+        - { protocol: TCP, port: 26379 }
+  egress:
+    - to:
+        {{- include "raggie.np.peer" (dict "root" . "component" "valkey") | nindent 8 }}
+      ports:
+        - { protocol: TCP, port: 6379 }
+        - { protocol: TCP, port: 26379 }
+{{- end }}
+{{- if eq .Values.vectordb.mode "single" }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ $fn }}-qdrant
+  labels:
+    {{- include "raggie.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "raggie.selectorLabels" (dict "root" . "component" "qdrant") | nindent 6 }}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        {{- include "raggie.np.peers" (dict "root" . "components" (list "edge" "control-plane" "ingestion-worker" "eval-worker" "scheduler")) | nindent 8 }}
+      ports:
+        - { protocol: TCP, port: 6333 }
+{{- end }}
+{{- if eq .Values.vectordb.mode "cluster" }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ $fn }}-qdrant-cluster
+  labels:
+    {{- include "raggie.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels: { app.kubernetes.io/name: qdrant, app.kubernetes.io/instance: {{ .Release.Name }} }
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        {{- include "raggie.np.peers" (dict "root" . "components" (list "edge" "control-plane" "ingestion-worker" "eval-worker" "scheduler")) | nindent 8 }}
+      ports:
+        - { protocol: TCP, port: 6333 }
+    # Raft consensus + shard transfer between Qdrant peers.
+    - from:
+        - podSelector:
+            matchLabels: { app.kubernetes.io/name: qdrant, app.kubernetes.io/instance: {{ .Release.Name }} }
+      ports:
+        - { protocol: TCP, port: 6333 }
+        - { protocol: TCP, port: 6334 }
+        - { protocol: TCP, port: 6335 }
+  egress:
+    - to:
+        - podSelector:
+            matchLabels: { app.kubernetes.io/name: qdrant, app.kubernetes.io/instance: {{ .Release.Name }} }
+      ports:
+        - { protocol: TCP, port: 6333 }
+        - { protocol: TCP, port: 6334 }
+        - { protocol: TCP, port: 6335 }
+{{- end }}
+{{- if and .Values.ingress.enabled .Values.ingress.clusterIssuer }}
+---
+# cert-manager's HTTP-01 challenge runs a temporary solver pod in this
+# namespace, which default-deny would isolate: the certificate would never be
+# issued. Admit only the ingress controller to the solver port. Harmless with a
+# DNS-01 issuer.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ $fn }}-allow-acme-http01-solver
+  labels:
+    {{- include "raggie.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels: { acme.cert-manager.io/http01-solver: "true" }
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            {{- toYaml $np.ingressControllerNamespaceSelector | nindent 12 }}
+      ports:
+        - { protocol: TCP, port: 8089 }
+{{- end }}
+{{- if eq .Values.s3.mode "seaweedfs" }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ $fn }}-seaweedfs
+  labels:
+    {{- include "raggie.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "raggie.selectorLabels" (dict "root" . "component" "seaweedfs") | nindent 6 }}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        {{- include "raggie.np.peers" (dict "root" . "components" (list "control-plane" "ingestion-worker" "eval-worker" "scheduler")) | nindent 8 }}
+      ports:
+        - { protocol: TCP, port: 8333 }
+{{- end }}
+{{- end }}

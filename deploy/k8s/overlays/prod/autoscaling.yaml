@@ -1,0 +1,99 @@
+# Autoscaling (prod). KEDA scales the workloads whose load isn't CPU-shaped:
+# the edge on live SSE-connection count (the real A5 dimension) and the workers
+# on event-bus queue depth. Plain HPAs cover the CPU-bound control-plane + web.
+# (KEDA owns the edge/worker HPAs, so they must not also have a vanilla HPA.)
+---
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: edge
+spec:
+  scaleTargetRef:
+    name: edge
+  minReplicaCount: 3
+  maxReplicaCount: 80 # ~800 SSE conns/pod -> headroom past 50k concurrent
+  cooldownPeriod: 120
+  advanced:
+    horizontalPodAutoscalerConfig:
+      behavior:
+        scaleDown:
+          stabilizationWindowSeconds: 180
+  triggers:
+    - type: prometheus
+      metadata:
+        serverAddress: http://prometheus.observability.svc:9090
+        metricName: raggie_edge_active_sse_connections
+        query: sum(raggie_edge_active_sse_connections)
+        threshold: "800"
+    - type: cpu
+      metricType: Utilization
+      metadata:
+        value: "70"
+---
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: ingestion-worker
+spec:
+  scaleTargetRef:
+    name: ingestion-worker
+  minReplicaCount: 1
+  maxReplicaCount: 20
+  triggers:
+    - type: redis-streams
+      metadata:
+        address: redis:6379
+        stream: raggie.document.uploaded
+        consumerGroup: ingestion-workers
+        pendingEntriesCount: "50"
+---
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: eval-worker
+spec:
+  scaleTargetRef:
+    name: eval-worker
+  minReplicaCount: 1
+  maxReplicaCount: 20
+  triggers:
+    - type: redis-streams
+      metadata:
+        address: redis:6379
+        stream: raggie.chat.completed
+        consumerGroup: eval-workers
+        pendingEntriesCount: "100"
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: control-plane
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: control-plane
+  minReplicas: 3
+  maxReplicas: 20
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target: { type: Utilization, averageUtilization: 70 }
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: web
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: web
+  minReplicas: 3
+  maxReplicas: 12
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target: { type: Utilization, averageUtilization: 70 }

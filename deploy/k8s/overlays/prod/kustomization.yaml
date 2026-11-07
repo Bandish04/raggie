@@ -1,0 +1,52 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Production overlay: multi-replica fronts + pinned registry images. Autoscaling
+# (HPA/KEDA), the A4 NetworkPolicies, and observability are added on top in the
+# subsequent P7 steps (autoscaling.yaml, networkpolicy.yaml, observability/).
+resources:
+  - ../../base
+  - ../../observability
+  - autoscaling.yaml
+  # Lets ingress-nginx reach cert-manager's HTTP-01 solver (see ingress-tls.yaml).
+  - acme-networkpolicy.yaml
+
+replicas:
+  - { name: edge, count: 3 }
+  - { name: control-plane, count: 3 }
+  - { name: web, count: 3 }
+  # SKIP LOCKED claims make a second scheduler safe; it covers a node loss.
+  - { name: scheduler-worker, count: 2 }
+
+# TLS on both Ingresses (cert-manager) and the matching https settings. The base
+# stays plain HTTP for dev. Hostnames: set them in config-tls.yaml only.
+patches:
+  - path: ingress-tls.yaml
+  - path: config-tls.yaml
+
+# Derive every Ingress host (rules and TLS) from the https URLs in
+# config-tls.yaml, so cookies, HSTS, CSRF origin and certificates never disagree.
+replacements:
+  - source:
+      kind: ConfigMap
+      name: raggie-config
+      fieldPath: data.PUBLIC_WEB_URL
+      options: { delimiter: "//", index: 1 }
+    targets:
+      - select: { kind: Ingress, name: raggie-admin }
+        fieldPaths: [spec.rules.0.host, spec.tls.0.hosts.0]
+  - source:
+      kind: ConfigMap
+      name: raggie-config
+      fieldPath: data.WIDGET_EMBED_BASE_URL
+      options: { delimiter: "//", index: 1 }
+    targets:
+      - select: { kind: Ingress, name: raggie-public }
+        fieldPaths: [spec.rules.0.host, spec.tls.0.hosts.0]
+
+images:
+  - { name: raggie/edge, newName: registry.example.com/raggie/edge, newTag: "1.0.0" }
+  - { name: raggie/control-plane, newName: registry.example.com/raggie/control-plane, newTag: "1.0.0" }
+  - { name: raggie/web, newName: registry.example.com/raggie/web, newTag: "1.0.0" }
+  - { name: raggie/workers, newName: registry.example.com/raggie/workers, newTag: "1.0.0" }
+  - { name: raggie/embeddings, newName: registry.example.com/raggie/embeddings, newTag: "1.0.0" }

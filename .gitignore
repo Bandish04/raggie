@@ -1,0 +1,78 @@
+# ---- Secrets & local env ----
+.env
+.env.*
+!.env.example
+!.env.embeddings.example
+*.local
+# Installer state (.raggie/compose wrapper, images override, state.env)
+/.raggie/
+
+# ---- Go ----
+/services/edge/edge
+/services/edge/edge.exe
+*.test
+*.out
+coverage.txt
+coverage.html
+
+# ---- Python ----
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+dist/
+build/
+
+# ---- Node / Next.js ----
+node_modules/
+.next/
+out/
+.turbo/
+*.tsbuildinfo
+.pnpm-store/
+.pnpm-debug.log*
+npm-debug.log*
+yarn-error.log*
+
+# ---- Build / dist artifacts ----
+/bin/
+/tmp/
+*.log
+
+# ---- Docker / data volumes (local) ----
+/deploy/compose/data/
+
+# ---- Local agent/runtime state ----
+.claude/
+
+# ---- Editor / OS ----
+.DS_Store
+Thumbs.db
+.idea/
+*.swp
+*~
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.shared.json
+
+# Stitch design references (not committed)
+_stitch/
+
+# ---- Internal / never public ----
+/internal/
+/CLAUDE.md
+CC-Session-Logs/
+security_best_practices_report.md
+*.zip
+__MACOSX/
+.test-deps.env
+
+# ---- Helm ----
+deploy/helm/*/charts/*.tgz

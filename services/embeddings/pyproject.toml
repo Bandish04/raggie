@@ -1,0 +1,70 @@
+[project]
+name = "raggie-embeddings"
+version = "0.1.0"
+description = "Raggie embeddings gateway: local fastembed/ONNX or OpenAI-compatible cloud dense embeddings, local BM25 sparse vectors and reranking."
+license = "Apache-2.0"
+requires-python = ">=3.13"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.32",
+    "pydantic-settings>=2.6",
+    "prometheus-client>=0.21",
+    "fastembed>=0.7,<0.8",
+    # Newer huggingface_hub moved blobs to a shared, sharded cache dir; onnxruntime then rejects
+    # model.onnx_data as "escaping the model directory". 1.18 (prod) keeps per-model blobs.
+    "huggingface_hub<1.19",
+    # Gateway mode: one keep-alive client for cloud dense/rerank upstreams, and the
+    # Redis-backed query-embedding cache.
+    "httpx>=0.27",
+    "redis>=5.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3",
+    "pytest-asyncio>=0.24",
+    "respx>=0.21",
+    "fakeredis>=2.26",
+    "jsonschema>=4.23",
+    "ruff==0.15.15",
+    "mypy>=1.13",
+]
+
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["raggie_embeddings"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py313"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.ruff.lint.flake8-bugbear]
+extend-immutable-calls = ["fastapi.Depends"]
+
+[tool.pytest.ini_options]
+addopts = "-q"
+testpaths = ["tests"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+# Starlette's TestClient (via fastapi.testclient) warns on import that httpx is
+# deprecated in favour of httpx2; only that message is silenced.
+filterwarnings = [
+    'ignore:Using `httpx` with `starlette\.testclient` is deprecated:UserWarning',
+]
+markers = [
+    "model: downloads and runs the real ONNX models (set EMBEDDINGS_MODEL_TESTS=1)",
+]
+
+[tool.uv]
+# Supply-chain cooldown: never resolve a release younger than a week.
+exclude-newer = "7 days"
+# fastembed 0.7.x caps pillow<12, which has published advisories. The gateway is
+# text-only (Pillow is imported by fastembed's image models, never exercised
+# here), so override to a fixed release; re-check when moving to fastembed 0.8.
+override-dependencies = ["pillow>=13.0"]

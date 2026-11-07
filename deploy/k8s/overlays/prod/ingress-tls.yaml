@@ -1,0 +1,38 @@
+# TLS for both Ingresses via cert-manager (same shape as the Helm chart). The
+# hosts below are placeholders: kustomization.yaml `replacements` overwrite every
+# host here and in the base rules from the https URLs in config-tls.yaml, so set
+# your hostnames there only. Requires cert-manager and a ClusterIssuer; see
+# deploy/k8s/README.md.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: raggie-public
+  annotations:
+    # Change to the name of your ClusterIssuer.
+    cert-manager.io/cluster-issuer: letsencrypt
+    # SSE chat streams: no buffering in either direction, long-lived reads.
+    nginx.ingress.kubernetes.io/proxy-buffering: "off"
+    nginx.ingress.kubernetes.io/proxy-request-buffering: "off"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-body-size: "25m"
+spec:
+  tls:
+    - hosts: [chat.raggie.example]
+      secretName: raggie-public-tls
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: raggie-admin
+  annotations:
+    # Change to the name of your ClusterIssuer.
+    cert-manager.io/cluster-issuer: letsencrypt
+    # The web app proxies the internal chat stream (/api/chat): no buffering.
+    nginx.ingress.kubernetes.io/proxy-buffering: "off"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-body-size: "64m"
+spec:
+  tls:
+    - hosts: [admin.raggie.example]
+      secretName: raggie-admin-tls

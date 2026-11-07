@@ -1,0 +1,388 @@
+name: Nightly
+
+# Expensive suites kept out of the per-PR CI: long fuzzing, slow property tests,
+# real-model embedding tests and the full-stack browser e2e.
+on:
+  schedule:
+    - cron: "23 1 * * *" # daily, 01:23 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nightly-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  GO_VERSION: "1.26"
+  PYTHON_VERSION: "3.13"
+  NODE_VERSION: "22"
+
+jobs:
+  edge-fuzz:
+    name: edge fuzz (long)
+    runs-on: ubuntu-latest
+    # 23 targets x 10 minutes, run sequentially.
+    timeout-minutes: 300
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache-dependency-path: services/edge/go.sum
+      - name: fuzz (every target)
+        run: make fuzz-long
+      # Only the inputs `go test -fuzz` just wrote (untracked), not the
+      # committed seed corpora.
+      - name: collect new fuzz crashers
+        if: failure()
+        working-directory: .
+        run: |
+          mkdir -p "$RUNNER_TEMP/crashers"
+          git ls-files -z --others --exclude-standard -- 'services/edge/**/testdata/fuzz/**' \
+            | xargs -0 -r cp --parents -t "$RUNNER_TEMP/crashers"
+      - name: upload fuzz crashers
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: edge-fuzz-crashers
+          path: ${{ runner.temp }}/crashers/
+          if-no-files-found: ignore
+
+  python-slow:
+    name: ${{ matrix.service }} (RAGGIE_SLOW_TESTS)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        service: [control-plane, workers]
+    services:
+      postgres:
+        image: postgres:17.11-alpine
+        env:
+          POSTGRES_DB: raggie
+          POSTGRES_USER: raggie
+          POSTGRES_PASSWORD: raggie
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U raggie -d raggie"
+          --health-interval 5s --health-timeout 3s --health-retries 10
+      redis:
+        image: valkey/valkey:8.1.11-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "valkey-cli ping"
+          --health-interval 5s --health-timeout 3s --health-retries 10
+      qdrant:
+        image: qdrant/qdrant:v1.20.0@sha256:9bfc89f9914fc14876a88c05270685921a55b8877b254a98bcc1cc2f0a424cd2
+        ports:
+          - 6333:6333
+    env:
+      RAGGIE_SLOW_TESTS: "1"
+      DATABASE_URL: postgresql://raggie:raggie@localhost:5432/raggie
+      REDIS_TEST_URL: redis://localhost:6379
+      QDRANT_TEST_URL: http://localhost:6333
+    defaults:
+      run:
+        working-directory: services/${{ matrix.service }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          enable-cache: true
+          cache-dependency-glob: services/${{ matrix.service }}/uv.lock
+      - name: wait for qdrant
+        run: |
+          for _ in $(seq 1 30); do
+            curl -sf http://localhost:6333/readyz && exit 0
+            sleep 2
+          done
+          echo "qdrant did not become ready" >&2
+          exit 1
+      - run: uv sync --frozen --extra dev
+      - run: uv run --frozen pytest -q -p no:warnings
+
+  embeddings-models:
+    name: embeddings (real ONNX models)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      EMBEDDINGS_MODEL_TESTS: "1"
+    defaults:
+      run:
+        working-directory: services/embeddings
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          enable-cache: true
+          cache-dependency-glob: services/embeddings/uv.lock
+      - run: uv sync --frozen --extra dev
+      - run: uv run --frozen pytest -q -p no:warnings
+
+  e2e-stack:
+    name: web e2e (full compose stack)
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+        with:
+          package_json_file: web/package.json
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+          cache-dependency-path: web/pnpm-lock.yaml
+      - name: install web deps + chromium
+        working-directory: web
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm exec playwright install --with-deps chromium
+      # One step: the E2E_* exports (incl. the generated SETUP_TOKEN) stay in
+      # this shell and are never written to the job environment or the log.
+      - name: start stack + run e2e
+        env:
+          RAGGIE_E2E_DIR: ${{ runner.temp }}/raggie-e2e
+        run: |
+          eval "$(scripts/e2e-stack.sh up)"
+          cd web
+          pnpm e2e:stack
+      - name: stack logs
+        if: failure()
+        env:
+          RAGGIE_E2E_DIR: ${{ runner.temp }}/raggie-e2e
+        run: scripts/e2e-stack.sh logs --no-color --tail 300
+      - name: upload playwright report
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: e2e-stack-report
+          path: |
+            web/playwright-report/
+            web/test-results/stack/
+          if-no-files-found: ignore
+          retention-days: 7
+      - name: tear down stack
+        if: always()
+        env:
+          RAGGIE_E2E_DIR: ${{ runner.temp }}/raggie-e2e
+        run: |
+          if [ -d "$RAGGIE_E2E_DIR" ]; then
+            scripts/e2e-stack.sh down
+          fi
+
+  bench-test:
+    name: bench harness tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache-dependency-path: bench/go.sum
+      - run: make bench-test
+
+  # DAST (plan 6b.3): OWASP ZAP against a throwaway e2e stack of its own (the
+  # active scans are destructive, so they never share the e2e job's stack).
+  # Gate: tests/security/zap/assert_report.py with .zap/rules.tsv -- any High
+  # alert, and the curated Medium rules marked FAIL, fail the job.
+  dast:
+    name: DAST (OWASP ZAP)
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    env:
+      ZAP_IMAGE: zaproxy/zap-stable:2.17.0@sha256:9624669db72f54d86c4b46a7064518bd9bf79d8c61a4c31befa9923489f328af
+      # Active-scan budget per API scan.
+      ZAP_SCAN_OPTS: -config scanner.maxScanDurationInMins=40 -config scanner.maxRuleDurationInMins=5
+    steps:
+      - name: scratch paths (stack state + ZAP work dir, outside the checkout)
+        run: |
+          echo "RAGGIE_E2E_DIR=$RUNNER_TEMP/raggie-e2e" >> "$GITHUB_ENV"
+          echo "ZAP_WRK=$RUNNER_TEMP/zap" >> "$GITHUB_ENV"
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - name: gate + bootstrap self-tests
+        run: uvx "pytest==8.4.2" -q -p no:cacheprovider tests/security/zap
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+        with:
+          package_json_file: web/package.json
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+          cache-dependency-path: web/pnpm-lock.yaml
+      - name: install web deps + chromium
+        working-directory: web
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm exec playwright install --with-deps chromium
+      - run: docker pull "$ZAP_IMAGE"
+      # One step, as in the e2e job: SETUP_TOKEN stays in this shell. Only the
+      # non-secret URLs are handed to later steps. API docs are exposed and the
+      # widget token lives long enough for the scans ONLY on this test stack.
+      - name: start stack + onboard (Playwright setup project)
+        env:
+          E2E_ENV_EXPOSE_API_DOCS: "true"
+          E2E_ENV_WIDGET_TOKEN_TTL_SECONDS: "7200"
+          # Edge rate limits off on this stack only: the security e2e suite
+          # proves them, and an active scan that mostly sees 429s proves nothing.
+          E2E_ENV_RATE_LIMIT_ENABLED: "false"
+        run: |
+          eval "$(scripts/e2e-stack.sh up)"
+          (cd web && pnpm e2e:stack --project=setup)
+          {
+            echo "E2E_PUBLIC_URL=${E2E_PUBLIC_URL:-$E2E_BASE_URL}"
+            echo "E2E_CONTROL_PLANE_URL=$E2E_CONTROL_PLANE_URL"
+          } >> "$GITHUB_ENV"
+      # Admin bearer + widget token (masked, via $GITHUB_ENV) and the two
+      # OpenAPI inputs; see the script's docstring.
+      - name: prepare authenticated scans
+        run: |
+          mkdir -p "$ZAP_WRK"
+          cp .zap/rules.tsv tests/security/zap/auth_hook.py "$ZAP_WRK/"
+          python3 tests/security/zap/bootstrap.py --out "$ZAP_WRK"
+          chmod -R a+rwX "$ZAP_WRK"
+      # ZAP exit codes: 0 pass, 1 FAIL-rule hits, 2 warnings -- all judged by the
+      # gate step below; anything else means the scan itself did not run.
+      - name: ZAP baseline (passive, public origin)
+        run: |
+          rc=0
+          docker run --rm --network host -v "$ZAP_WRK:/zap/wrk:rw" "$ZAP_IMAGE" \
+            zap-baseline.py -t "$E2E_PUBLIC_URL" -c rules.tsv -m 5 -j \
+            -J baseline.json -r baseline.html || rc=$?
+          if [ "$rc" -gt 2 ]; then echo "::error::zap-baseline did not complete (exit $rc)"; exit "$rc"; fi
+      - name: ZAP API scan (control plane OpenAPI, admin bearer)
+        env:
+          ZAP_AUTH_HEADER_VALUE: Bearer ${{ env.ZAP_CP_BEARER }}
+        run: |
+          ZAP_AUTH_HEADER_SITE="$(python3 -c 'import os,urllib.parse as u; print(u.urlsplit(os.environ["E2E_CONTROL_PLANE_URL"]).hostname)')"
+          export ZAP_AUTH_HEADER_SITE
+          rc=0
+          docker run --rm --network host -v "$ZAP_WRK:/zap/wrk:rw" \
+            -e ZAP_AUTH_HEADER_VALUE -e ZAP_AUTH_HEADER_SITE \
+            -e ZAP_AUTH_CHECK_OUT=/zap/wrk/auth-cp.json "$ZAP_IMAGE" \
+            zap-api-scan.py -t openapi-cp.json -f openapi -c rules.tsv \
+            --hook=/zap/wrk/auth_hook.py \
+            -J api-cp.json -r api-cp.html -z "$ZAP_SCAN_OPTS" || rc=$?
+          if [ "$rc" -gt 2 ]; then echo "::error::zap-api-scan (control plane) did not complete (exit $rc)"; exit "$rc"; fi
+      # The widget surface needs the widget token AND an allow-listed Origin;
+      # ZAP's replacer adds the Origin header to every request.
+      - name: ZAP API scan (edge widget surface, widget token)
+        env:
+          ZAP_AUTH_HEADER_VALUE: Bearer ${{ env.ZAP_WIDGET_BEARER }}
+        run: |
+          ZAP_AUTH_HEADER_SITE="$(python3 -c 'import os,urllib.parse as u; print(u.urlsplit(os.environ["E2E_PUBLIC_URL"]).hostname)')"
+          export ZAP_AUTH_HEADER_SITE
+          origin="-config replacer.full_list(0).description=widget-origin"
+          origin+=" -config replacer.full_list(0).enabled=true"
+          origin+=" -config replacer.full_list(0).matchtype=REQ_HEADER"
+          origin+=" -config replacer.full_list(0).matchstr=Origin"
+          origin+=" -config replacer.full_list(0).regex=false"
+          origin+=" -config replacer.full_list(0).replacement=$E2E_PUBLIC_URL"
+          rc=0
+          docker run --rm --network host -v "$ZAP_WRK:/zap/wrk:rw" \
+            -e ZAP_AUTH_HEADER_VALUE -e ZAP_AUTH_HEADER_SITE \
+            -e ZAP_AUTH_CHECK_OUT=/zap/wrk/auth-edge.json "$ZAP_IMAGE" \
+            zap-api-scan.py -t openapi-edge.json -f openapi -c rules.tsv \
+            --hook=/zap/wrk/auth_hook.py \
+            -J api-edge.json -r api-edge.html -z "$ZAP_SCAN_OPTS $origin" || rc=$?
+          if [ "$rc" -gt 2 ]; then echo "::error::zap-api-scan (edge) did not complete (exit $rc)"; exit "$rc"; fi
+      # Also fails when an API scan never sent its bearer, or no authenticated
+      # request got a 2xx (auth_hook.py summaries): "scan ran unauthenticated".
+      - name: gate on findings (High + curated Medium) and on authentication
+        run: |
+          python3 tests/security/zap/assert_report.py --rules .zap/rules.tsv \
+            --auth-summary "$ZAP_WRK/auth-cp.json" --auth-summary "$ZAP_WRK/auth-edge.json" \
+            "$ZAP_WRK/baseline.json" "$ZAP_WRK/api-cp.json" "$ZAP_WRK/api-edge.json"
+      # Reports only (no tokens): the HTML/JSON outputs of the three scans.
+      - name: upload ZAP reports
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: zap-reports
+          path: |
+            ${{ env.ZAP_WRK }}/*.html
+            ${{ env.ZAP_WRK }}/baseline.json
+            ${{ env.ZAP_WRK }}/api-cp.json
+            ${{ env.ZAP_WRK }}/api-edge.json
+            ${{ env.ZAP_WRK }}/auth-*.json
+          if-no-files-found: warn
+          retention-days: 14
+      - name: stack logs
+        if: failure()
+        run: scripts/e2e-stack.sh logs --no-color --tail 300
+      - name: tear down stack
+        if: always()
+        run: |
+          if [ -d "$RAGGIE_E2E_DIR" ]; then
+            scripts/e2e-stack.sh down
+          fi
+
+  # THIRD_PARTY_NOTICES.md must match what the release regenerates on Linux
+  # (platform-specific optional packages such as sharp's libvips differ from a
+  # macOS run). Nightly, not per-PR: it needs network (Go proxy, PyPI) and builds
+  # go-licenses.
+  notices-fresh:
+    name: third-party notices up to date
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache-dependency-path: services/edge/go.sum
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+        with:
+          package_json_file: web/package.json
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+          cache-dependency-path: web/pnpm-lock.yaml
+      - name: install web production dependencies (Linux optional packages)
+        working-directory: web
+        run: pnpm install --frozen-lockfile
+      - run: make notices
+      - name: compare with the committed file
+        run: |
+          if ! git diff --exit-code -- THIRD_PARTY_NOTICES.md; then
+            echo "::error::THIRD_PARTY_NOTICES.md is stale; regenerate it on Linux with 'make notices' (or take the attached artifact) and commit it"
+            exit 1
+          fi
+      - name: license review gate
+        run: python3 scripts/notices/check_review.py
+      - name: upload regenerated notices
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: third-party-notices-linux
+          path: THIRD_PARTY_NOTICES.md
+          retention-days: 7

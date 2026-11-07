@@ -1,0 +1,14 @@
+# NVIDIA GPU for the bundled Ollama. Needs the NVIDIA driver and the NVIDIA
+# Container Toolkit on the host. Layer it on top of docker-compose.ollama.yml:
+#   docker compose -f deploy/compose/docker-compose.yml \
+#     -f deploy/compose/docker-compose.ollama.yml \
+#     -f deploy/compose/docker-compose.gpu.yml --profile core up -d
+services:
+  ollama:
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]

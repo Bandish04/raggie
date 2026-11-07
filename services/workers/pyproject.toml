@@ -1,0 +1,60 @@
+[project]
+name = "raggie-workers"
+version = "0.1.0"
+description = "Raggie background workers: document ingestion, answer evaluation and scheduled tasks."
+license = "Apache-2.0"
+requires-python = ">=3.13"
+dependencies = [
+    "pydantic-settings>=2.6",
+    "prometheus-client>=0.21",
+    "pdfplumber>=0.11",
+    "pypdfium2>=4.30",
+    "pytesseract>=0.3.13",
+    "Pillow>=13.0",
+    "python-docx>=1.1",
+    "openpyxl>=3.1",
+    "python-pptx>=1.0",
+    "qdrant-client>=1.19,<2",
+    "httpx>=0.27",
+    "redis>=5.0",
+    "asyncpg>=0.30",
+    "minio>=7.2",
+    # Scheduler worker: cron next-occurrence math + the IANA tz DB for zoneinfo
+    # (the slim base image ships no system tzdata).
+    "croniter>=2.0",
+    "tzdata>=2024.1",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3",
+    "pytest-asyncio>=0.24",
+    "reportlab>=4.2",
+    "ruff==0.15.15",
+    "hypothesis>=6.100",  # property/fuzz tests
+    "pyyaml>=6.0.2",  # bench/judge_eval.py dataset (tests + make eval-judge)
+    "mypy>=1.13",
+]
+
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["raggie_workers"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py313"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.pytest.ini_options]
+addopts = "-q"
+testpaths = ["tests"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+markers = [
+    "slow: long Hypothesis runs, nightly only (set RAGGIE_SLOW_TESTS=1)",
+]

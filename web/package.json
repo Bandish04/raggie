@@ -1,0 +1,42 @@
+{
+  "name": "web",
+  "version": "0.1.0",
+  "private": true,
+  "license": "Apache-2.0",
+  "packageManager": "pnpm@9.6.0",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint",
+    "test:unit": "node --test \"lib/**/*.test.ts\"",
+    "i18n:check": "node --test lib/i18n-check.test.ts",
+    "test:e2e": "playwright test",
+    "e2e:stack": "playwright test -c playwright.stack.config.ts",
+    "test:chat": "playwright test -c playwright.chat.config.ts",
+    "capture:readme": "CAPTURE_README=1 playwright test -c playwright.chat.config.ts capture-readme",
+    "test:e2e:ui": "playwright test --ui",
+    "test:visual:update": "playwright test --update-snapshots"
+  },
+  "dependencies": {
+    "next": "16.4.5",
+    "next-intl": "^4.13.0",
+    "react": "19.2.4",
+    "react-dom": "19.2.4",
+    "react-markdown": "^10.1.0",
+    "remark-gfm": "^4.0.1"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "4.14.0",
+    "@playwright/test": "^1.60.0",
+    "@tailwindcss/postcss": "^4",
+    "@tailwindcss/typography": "^0.5.19",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "16.4.5",
+    "tailwindcss": "^4",
+    "typescript": "^5"
+  }
+}

@@ -1,0 +1,30 @@
+# Test-only access for the chaos driver pods (label raggie.io/chaos=true).
+# NetworkPolicies are additive: these open the paths the k6 driver needs on top
+# of the chart's default-deny without loosening anything for app pods.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: chaos-driver-egress
+spec:
+  podSelector:
+    matchLabels: { raggie.io/chaos: "true" }
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - podSelector: {}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: chaos-driver-ingress-to-apps
+spec:
+  podSelector:
+    matchExpressions:
+      - key: app.kubernetes.io/component
+        operator: In
+        values: [edge, web, control-plane]
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels: { raggie.io/chaos: "true" }

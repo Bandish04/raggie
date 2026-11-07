@@ -1,0 +1,454 @@
+# Raggie single-node stack.
+#
+# Profiles (ARCHITECTURE.md §10):
+#   core    — the stack: datastores (Postgres, Valkey Streams as the event bus,
+#             Qdrant, SeaweedFS), embeddings, control plane, edge, workers, web
+#             and the Caddy front door.
+#   mock    — deterministic mock LLM (`make up-demo`).
+#   ollama  — bundled Ollama (`make up-ollama`, with docker-compose.ollama.yml).
+#   mcp     — mcp-atlassian for the Jira MCP tools.
+#
+# Usage: `make up-core` (passes the right --profile and loads .env).
+#
+# Caddy (deploy/compose/caddy/Caddyfile) is the only public entry point: it
+# serves the web app and the widget surface of the edge on one origin
+# (HTTP_PORT / HTTPS_PORT, automatic HTTPS when RAGGIE_DOMAIN is set) and sets
+# X-Forwarded-For from the real client. web and edge publish on 127.0.0.1 only,
+# for debugging. Overlays: docker-compose.demo.yml (mock LLM),
+# docker-compose.ollama.yml (local Ollama), docker-compose.gpu.yml (NVIDIA GPU
+# for Ollama).
+# Third-party images are pinned to a version, datastores also to a multi-arch
+# digest (Dependabot's docker-compose updater bumps both).
+
+name: raggie
+
+x-app-env: &app-env
+  env_file: ../../.env
+
+services:
+  # ───────────────────────── Datastores ─────────────────────────
+  postgres:
+    image: postgres:17.11-alpine@sha256:266d3c257594e195b309ae9d1805e54c788f1d7b375f56bf6c367aac6c917e7b
+    profiles: ["core"]
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-raggie}
+      POSTGRES_USER: ${POSTGRES_USER:-raggie}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-raggie}
+    ports:
+      - "${DATASTORE_BIND_HOST:-127.0.0.1}:${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  # Valkey (BSD-3-Clause), a drop-in for Redis 7: same protocol, Streams and
+  # persistence. The service keeps the `redis` name so REDIS_URL stays valid.
+  redis:
+    image: valkey/valkey:8.1.11-alpine@sha256:2602ace2be6569bc2bbb06f873776516ab9089821525be34f4305c67eb9db02a
+    profiles: ["core"]
+    # Auth is enabled whenever REDIS_PASSWORD is set (install.sh always sets it).
+    # REDIS_URL must then carry the same password: redis://:<password>@redis:6379/0
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+    command:
+      - sh
+      - -c
+      - exec valkey-server --appendonly yes $${REDIS_PASSWORD:+--requirepass "$$REDIS_PASSWORD"}
+    ports:
+      - "${DATASTORE_BIND_HOST:-127.0.0.1}:${REDIS_PORT:-6379}:6379"
+    # A fresh volume: Valkey 8 cannot load the RDB/AOF files that Redis 7.4
+    # writes (RDB format 12). The old redis_data volume is left untouched; the
+    # store only holds rate limits, idempotency keys and the event stream, so
+    # drain the workers before switching an existing install.
+    volumes:
+      - valkey_data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "valkey-cli --no-auth-warning $${REDIS_PASSWORD:+-a \"$$REDIS_PASSWORD\"} ping | grep -q PONG"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  qdrant:
+    image: qdrant/qdrant:v1.20.0@sha256:9bfc89f9914fc14876a88c05270685921a55b8877b254a98bcc1cc2f0a424cd2
+    profiles: ["core"]
+    # QDRANT_API_KEY enables Qdrant auth. It is exported only when non-empty:
+    # an empty QDRANT__SERVICE__API_KEY makes Qdrant reject every request (401).
+    environment:
+      RAGGIE_QDRANT_API_KEY: ${QDRANT_API_KEY:-}
+      # No anonymous usage reports to the Qdrant project (on by default upstream).
+      QDRANT__TELEMETRY_DISABLED: "true"
+    command:
+      - sh
+      - -c
+      - '[ -n "$$RAGGIE_QDRANT_API_KEY" ] && export QDRANT__SERVICE__API_KEY="$$RAGGIE_QDRANT_API_KEY"; exec ./entrypoint.sh'
+    ports:
+      - "${DATASTORE_BIND_HOST:-127.0.0.1}:${QDRANT_HTTP_PORT:-6333}:6333"
+      - "${DATASTORE_BIND_HOST:-127.0.0.1}:${QDRANT_GRPC_PORT:-6334}:6334"
+    volumes:
+      - qdrant_data:/qdrant/storage
+    healthcheck:
+      # The image has no curl/wget; bash's /dev/tcp is enough for /readyz.
+      test:
+        - CMD
+        - bash
+        - -c
+        - "exec 3<>/dev/tcp/127.0.0.1/6333 && printf 'GET /readyz HTTP/1.0\\r\\n\\r\\n' >&3 && grep -q 'all shards are ready' <&3"
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  # S3-compatible object store for raw uploads: SeaweedFS (Apache-2.0), single
+  # node (master + volume + filer + S3 gateway in one process). It replaces
+  # MinIO, whose upstream is archived and whose images are no longer published.
+  # The S3 API listens on 9000 and the `minio` alias keeps existing
+  # MINIO_ENDPOINT=minio:9000 settings working; the MINIO_* variables are the
+  # generic S3 settings (endpoint, credentials, bucket). Any other S3 service
+  # (a self-built MinIO, Ceph RGW, AWS S3, ...) works by pointing MINIO_ENDPOINT
+  # and the credentials at it.
+  objectstore:
+    image: chrislusf/seaweedfs:4.52@sha256:57877e32bb90073b37dc109b438ba66e84fd5ed9ced5f5c04f56444ef243ce59
+    profiles: ["core"]
+    command: ["server", "-dir=/data", "-ip.bind=0.0.0.0", "-s3", "-s3.port=9000"]
+    environment:
+      # SeaweedFS creates its S3 admin identity from these.
+      AWS_ACCESS_KEY_ID: ${MINIO_ROOT_USER:-raggie}
+      AWS_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD:-raggie-minio}
+    networks:
+      default:
+        aliases: [minio]
+    ports:
+      - "${DATASTORE_BIND_HOST:-127.0.0.1}:${MINIO_API_PORT:-9000}:9000"
+    volumes:
+      - objectstore_data:/data
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:9000/healthz"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
+    restart: unless-stopped
+
+  # ───────────────────────── Application services ───────────────
+  edge:
+    build:
+      context: ../../services/edge
+    image: raggie/edge:dev
+    profiles: ["core"]
+    <<: *app-env
+    # The external widget loader + bundle are served from the public edge at
+    # /widgets/ (A4: public static host, not the admin backend). WIDGET_STATIC_DIR
+    # defaults to /app/widget; for k8s this becomes a ConfigMap mount.
+    volumes:
+      - ../../widget:/app/widget:ro
+    environment:
+      # Only Caddy and in-network services reach the edge, so X-Forwarded-For
+      # from private-range peers (Caddy sets it from the real client) is the
+      # client IP the widget rate limits key on.
+      TRUSTED_PROXY_CIDRS: ${TRUSTED_PROXY_CIDRS:-10.0.0.0/8,172.16.0.0/12,192.168.0.0/16}
+    ports:
+      # Loopback only, for debugging; the public path is Caddy. EDGE_PORT is the
+      # edge's own listen port, so the host side has its own variable.
+      - "127.0.0.1:${EDGE_HOST_PORT:-8080}:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      qdrant:
+        condition: service_healthy
+    ulimits:
+      nofile:
+        soft: 65536
+        hard: 65536
+    restart: unless-stopped
+
+  control-plane:
+    build:
+      context: ../../services/control-plane
+    image: raggie/control-plane:dev
+    profiles: ["core"]
+    <<: *app-env
+    ports:
+      # Loopback only: the web and edge reach control-plane over the compose
+      # network; the admin API and its docs are never exposed on the host's
+      # public interfaces.
+      - "127.0.0.1:${CONTROL_PLANE_PORT:-8000}:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      objectstore:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ───────────────────────── Mock LLM (offline demo / CI) ───────
+  # Deterministic OpenAI-compatible LLM that answers with citations to the
+  # retrieved sources. Lets the whole stack run with no API key and no GPU:
+  #   docker compose --profile core --profile mock up -d
+  # and point the edge at it: LLMAAS_BASE_URL=http://mockllm:11435/v1
+  mockllm:
+    build:
+      context: ../../services/edge
+      dockerfile: Dockerfile.mockllm
+    image: raggie/mockllm:dev
+    profiles: ["mock"]
+    environment:
+      MOCKLLM_ADDR: ":11435"
+      MOCKLLM_MODELS: ${MOCKLLM_MODELS:-gpt-oss-120b,raggie-mock}
+      MOCKLLM_TOKEN_DELAY_MS: ${MOCKLLM_TOKEN_DELAY_MS:-15}
+    expose:
+      - "11435"
+    healthcheck:
+      test: ["CMD", "/mockllm", "-healthcheck"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  # ───────────────────────── MCP tool servers ──────────────────
+  # Self-hosted Atlassian (Jira) MCP server. Phase 1: READ-only Jira tools the
+  # chat LLM can call via the edge's MCP loop (MCP_ENABLED gates the edge side).
+  # The container holds the Jira credentials (the edge never does) and runs the
+  # streamable-HTTP transport on :9000. NO host port is published — only the edge
+  # (same network) reaches it at http://mcp-atlassian:9000/mcp. READ_ONLY_MODE
+  # disables every write tool server-side. The image entrypoint IS the
+  # `mcp-atlassian` console script, so we pass only the transport flags.
+  #
+  # Its OWN profile ("mcp") — NOT core — so the default stack never starts it
+  # without Jira creds (it would crash-loop). Bring it up explicitly once creds
+  # are set:  docker compose --profile mcp up -d mcp-atlassian. The edge connects
+  # lazily + fail-soft, so no depends_on is needed.
+  mcp-atlassian:
+    image: ghcr.io/sooperset/mcp-atlassian:0.23.1@sha256:5b7c9b64d4eb3210cab74be8bf3e6aeea9ed14f3042dc59ba5c5287bd4dbe466
+    profiles: ["mcp"]
+    # --path /mcp is REQUIRED so the streamable-HTTP endpoint matches the edge's
+    # MCP_ATLASSIAN_URL (http://mcp-atlassian:9000/mcp); the server does not assume
+    # /mcp by default. -v makes the first-connect debuggable.
+    command: ["--transport", "streamable-http", "--port", "9000", "--path", "/mcp", "-v"]
+    environment:
+      JIRA_URL: ${JIRA_URL}
+      JIRA_USERNAME: ${JIRA_USERNAME}
+      JIRA_API_TOKEN: ${JIRA_API_TOKEN}
+      # Phase 1: hard-disable every WRITE tool server-side. With only Jira creds
+      # set (no Confluence) + READ_ONLY_MODE, just the Jira READ tools load — so we
+      # do NOT pin an ENABLED_TOOLS allowlist (avoids guessing exact tool names;
+      # tighten later from the live tools/list if desired).
+      READ_ONLY_MODE: "true"
+    expose:
+      - "9000"
+    restart: unless-stopped
+
+  embeddings:
+    build:
+      context: ../../services/embeddings
+      args:
+        # Models baked into the image: dense,sparse,rerank for LOCAL mode;
+        # "sparse" (BM25 only, ~550 MB image) for CLOUD mode.
+        EMBEDDINGS_BAKE: ${EMBEDDINGS_BAKE:-dense,sparse,rerank}
+    image: raggie/embeddings:dev
+    profiles: ["core"]
+    # Shared .env plus the cloud embedding/rerank keys, which ONLY this service
+    # receives (.env.embeddings is optional; local mode needs no keys).
+    env_file:
+      - path: ../../.env
+      - path: ../../.env.embeddings
+        required: false
+    environment:
+      # ONNX intra-op threads PER embeddings replica (passed to onnxruntime via
+      # fastembed; OMP_NUM_THREADS does not limit onnxruntime). On an 8-core box,
+      # 2 replicas x 4 threads uses every core without oversubscription.
+      # Scale at deploy: docker compose up -d --scale embeddings=N.
+      EMBEDDINGS_ONNX_THREADS: ${EMBEDDINGS_ONNX_THREADS:-4}
+    # No host port publish (was 8002:8002) so the service can be scaled to N
+    # replicas without a host-port collision; workers + edge reach it via the
+    # compose-network DNS name http://embeddings:8002 (round-robined across replicas).
+    expose:
+      - "8002"
+    restart: unless-stopped
+
+  ingestion-worker:
+    build:
+      context: ../../services/workers
+    image: raggie/workers:dev
+    profiles: ["core"]
+    <<: *app-env
+    environment:
+      WORKER_ROLE: ingestion
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      qdrant:
+        condition: service_healthy
+      objectstore:
+        condition: service_healthy
+      embeddings:
+        condition: service_healthy
+    restart: unless-stopped
+
+  eval-worker:
+    build:
+      context: ../../services/workers
+    image: raggie/workers:dev
+    profiles: ["core"]
+    <<: *app-env
+    environment:
+      WORKER_ROLE: eval
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # Runs due scheduled_tasks: claims by next_run_at, calls the edge's internal
+  # run-task endpoint to execute each prompt, and writes the result to the
+  # notifications inbox. env_file supplies DATABASE_URL/INTERNAL_API_SECRET; the
+  # scheduler knobs are surfaced here so their defaults apply if .env omits them.
+  scheduler-worker:
+    build:
+      context: ../../services/workers
+    image: raggie/workers:dev
+    profiles: ["core"]
+    <<: *app-env
+    environment:
+      WORKER_ROLE: scheduler
+      EDGE_URL: ${EDGE_URL:-http://edge:8080}
+      INTERNAL_API_SECRET: ${INTERNAL_API_SECRET:-}
+      SCHEDULER_POLL_SECONDS: ${SCHEDULER_POLL_SECONDS:-30}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      edge:
+        condition: service_started
+    restart: unless-stopped
+
+  web:
+    build:
+      context: ../../web
+    image: raggie/web:dev
+    profiles: ["core"]
+    # No env_file: the web tier is the internet-facing app and holds no backend
+    # secret. It gets exactly the settings it reads (grep process.env in web/);
+    # everything it needs from the backends goes through control-plane/edge with
+    # the user's own token. CI fails if a secret-looking key shows up here.
+    environment:
+      NODE_ENV: production
+      RAGGIE_ENV: ${RAGGIE_ENV:-production}
+      CONTROL_PLANE_URL: ${CONTROL_PLANE_URL:-http://control-plane:8000}
+      EDGE_URL: ${EDGE_URL:-http://edge:8080}
+      NEXT_PUBLIC_DEFAULT_LOCALE: ${NEXT_PUBLIC_DEFAULT_LOCALE:-tr}
+      PUBLIC_WEB_URL: ${PUBLIC_WEB_URL:-}
+      COOKIE_SECURE: ${COOKIE_SECURE:-}
+      ENABLE_HSTS: ${ENABLE_HSTS:-false}
+      # Never empty: Number("") would make the session cookie expire at once.
+      SESSION_TTL_SECONDS: ${SESSION_TTL_SECONDS:-28800}
+      VISION_MODELS: ${VISION_MODELS:-}
+      LLM_MODEL_PROFILES_JSON: ${LLM_MODEL_PROFILES_JSON:-}
+    ports:
+      # Loopback only, for debugging; the public path is Caddy.
+      - "127.0.0.1:${WEB_PORT:-3000}:3000"
+    depends_on:
+      control-plane:
+        condition: service_healthy
+      edge:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/healthz"]
+      interval: 10s
+      timeout: 3s
+      retries: 6
+      start_period: 20s
+    restart: unless-stopped
+
+  # ───────────────────────── Front door ─────────────────────────
+  caddy:
+    image: caddy:2.11.7-alpine@sha256:e70b164da81ef698b3ad19af799ea6086ce6d9e48ed4079eb9fe26f6fbf14ee5
+    profiles: ["core"]
+    environment:
+      # Site address: the domain (automatic HTTPS) or plain :80 when unset.
+      RAGGIE_SITE_ADDRESS: ${RAGGIE_DOMAIN:-:80}
+      ACME_EMAIL: ${ACME_EMAIL:-}
+    ports:
+      - "${HTTP_PORT:-80}:80"
+      - "${HTTPS_PORT:-443}:443"
+      - "${HTTPS_PORT:-443}:443/udp" # HTTP/3
+    volumes:
+      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data # certificates and ACME account
+      - caddy_config:/config
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop: ["ALL"]
+    cap_add: ["NET_BIND_SERVICE"]
+    security_opt: ["no-new-privileges:true"]
+    depends_on:
+      web:
+        condition: service_healthy
+      edge:
+        condition: service_started
+    healthcheck:
+      # The admin API listens on localhost inside the container only.
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:2019/config/"]
+      interval: 10s
+      timeout: 3s
+      retries: 6
+    restart: unless-stopped
+
+  # ───────────────────────── Local LLM (profile: ollama) ────────
+  # Ollama serves an OpenAI-compatible /v1 API on the compose network only. Use
+  # docker-compose.ollama.yml to point the stack at it (and pull the model on
+  # first start); docker-compose.gpu.yml adds an NVIDIA GPU.
+  ollama:
+    image: ollama/ollama:0.40.14@sha256:ebaef4f4c5d93660e1f25f8ad085a112f51ccfb0e8458073e71793959dba91c9
+    profiles: ["ollama"]
+    environment:
+      # RAG prompts carry up to RETRIEVE_CONTEXT_K chunks (~6k tokens with the
+      # defaults); a smaller window would silently truncate the sources.
+      OLLAMA_CONTEXT_LENGTH: ${OLLAMA_CONTEXT_LENGTH:-16384}
+      OLLAMA_KEEP_ALIVE: ${OLLAMA_KEEP_ALIVE:-24h}
+    expose:
+      - "11434"
+    volumes:
+      - ollama_models:/root/.ollama
+    cap_drop: ["ALL"]
+    security_opt: ["no-new-privileges:true"]
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    restart: unless-stopped
+
+  # One-shot: pulls OLLAMA_MODEL into the shared volume, then exits (a no-op
+  # when the model is already present).
+  ollama-pull:
+    image: ollama/ollama:0.40.14@sha256:ebaef4f4c5d93660e1f25f8ad085a112f51ccfb0e8458073e71793959dba91c9
+    profiles: ["ollama"]
+    environment:
+      OLLAMA_HOST: http://ollama:11434
+    command: ["pull", "${OLLAMA_MODEL:-qwen3:4b-instruct}"]
+    cap_drop: ["ALL"]
+    security_opt: ["no-new-privileges:true"]
+    depends_on:
+      ollama:
+        condition: service_healthy
+    restart: "no"
+
+volumes:
+  caddy_data:
+  caddy_config:
+  ollama_models:
+  postgres_data:
+  valkey_data:
+  qdrant_data:
+  objectstore_data:

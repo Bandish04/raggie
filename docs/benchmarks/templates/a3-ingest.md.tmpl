@@ -1,0 +1,40 @@
+{{template "header" .}}
+
+**{{.Body.Verdict}}**
+
+What is measured: a generated, text-heavy Turkish + English PDF is uploaded
+through the control plane (direct upload) and polled until the ingestion
+worker marks it SUCCESS: parse → chunk → embed (the configured embeddings
+gateway) → Qdrant upsert.
+
+| Document | |
+|---|---|
+| Pages | {{.Body.PDF.Pages}} |
+| Size | {{.Body.PDF.Bytes}} bytes |
+| Text | {{.Body.PDF.Chars}} characters |
+| Content seed | {{.Body.PDF.Seed}} |
+| SHA-256 | `{{.Body.PDF.SHA256}}` |
+
+Regenerate the identical file with `cd bench && go run ./a3-ingest -generate-only a3.pdf -pages {{.Body.PDF.Pages}} -seed {{.Body.PDF.Seed}}`.
+
+## Summary ({{.Body.Succeeded}}/{{len .Body.Runs}} runs succeeded)
+
+| Span (ms) | n | p50 | p95 | p99 | mean | max |
+|---|---|---|---|---|---|---|
+| worker processing (PROCESSING → SUCCESS, polled) | {{.Body.Processing.N}} | {{ms .Body.Processing.P50}} | {{ms .Body.Processing.P95}} | {{ms .Body.Processing.P99}} | {{ms .Body.Processing.Mean}} | {{ms .Body.Processing.Max}} |
+| end-to-end (upload sent → SUCCESS seen) | {{.Body.Wall.N}} | {{ms .Body.Wall.P50}} | {{ms .Body.Wall.P95}} | {{ms .Body.Wall.P99}} | {{ms .Body.Wall.Mean}} | {{ms .Body.Wall.Max}} |
+| server-side (created_at → updated_at) | {{.Body.Server.N}} | {{ms .Body.Server.P50}} | {{ms .Body.Server.P95}} | {{ms .Body.Server.P99}} | {{ms .Body.Server.Mean}} | {{ms .Body.Server.Max}} |
+
+## Runs
+
+| Run | Status | Upload ms | Queue ms | Processing ms | End-to-end ms | Server-side ms |
+|---|---|---|---|---|---|---|
+{{- range .Body.Runs}}
+| {{.Run}} | {{.Status}}{{if .Error}} ({{cell .Error}}){{end}} | {{ms .Upload}} | {{if .SawProcessing}}{{ms .Queue}}{{else}}—{{end}} | {{if .SawProcessing}}{{ms .Processing}}{{else}}—{{end}} | {{ms .Wall}} | {{ms .Server}} |
+{{- end}}
+{{template "environment" .}}
+
+{{template "config" .}}
+{{- template "notes" .}}
+
+Raw numbers: the `.csv` and `.json` files next to this report.

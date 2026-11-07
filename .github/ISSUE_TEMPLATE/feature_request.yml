@@ -1,0 +1,49 @@
+name: Feature request
+description: Suggest an improvement or a new capability
+title: "[Feature]: "
+labels: ["enhancement", "triage"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What are you trying to do, and what gets in the way today?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: What should Raggie do? Include UI, API or configuration ideas if you have them.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Workarounds or other approaches you thought about.
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Retrieval / answer quality
+        - Ingestion / file formats
+        - Chat UI
+        - Admin console
+        - Embeddable widget
+        - Multi-tenancy / permissions
+        - Authentication / SSO
+        - LLM providers
+        - Embeddings / reranking
+        - Integrations / MCP / web search
+        - Deployment (Compose / Kubernetes)
+        - Documentation
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: Constraints (security, privacy, scale, compliance), screenshots or links.

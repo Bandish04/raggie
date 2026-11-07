@@ -1,0 +1,40 @@
+{{template "header" .}}
+
+**{{.Body.Verdict}}**
+
+What is measured: N concurrent chat streams through the edge against the mock
+LLM. Each stream loops full chat turns (retrieval → persistence → token stream
+→ `done`) for the stage duration after a ramp-up. A stage passes when ≥
+{{pct .Body.Threshold}} of its turns complete and the time-to-first-token p95 is ≤
+{{ms .Body.TTFTBudget}} ms.
+
+| Mock token delay (`MOCKLLM_TOKEN_DELAY_MS`) | Edge LLM pool (`LLMAAS_CHAT_MAX_CONCURRENCY`) | Rate limiting | Client open-file limit | Edge resources |
+|---|---|---|---|---|
+| `{{.Body.TokenDelay}}` | `{{.Body.ChatMaxConc}}` | `{{.Body.RateLimit}}` | {{.Body.FileLimit}} | {{.Body.Resources}} |
+
+## Stages
+
+| Streams | Result | Turns | Completed | TTFT p50 ms | TTFT p95 ms | TTFT p99 ms | Turns/s | Client peak open | Edge mem peak | Edge CPU peak |
+|---|---|---|---|---|---|---|---|---|---|---|
+{{- range .Body.Stages}}
+| {{.Concurrency}} | {{cell .Reason}} | {{.Requests}} | {{pct .SuccessRate}} | {{ms .TTFT.P50}} | {{ms .TTFT.P95}} | {{ms .TTFT.P99}} | {{f3 .Throughput}} | {{.PeakClient}} | {{if .MemSamples}}{{bytes .EdgeMem}}{{else}}—{{end}} | {{if .MemSamples}}{{f3 .EdgeCPU}}%{{else}}—{{end}} |
+{{- end}}
+{{range .Body.Stages}}
+### {{.Concurrency}} streams — outcomes
+
+| Outcome | Turns |
+|---|---|
+{{- range .Outcomes}}
+| {{cell .Name}} | {{.Count}} |
+{{- end}}
+{{- if .HasActive}}
+
+Edge `raggie_edge_active_streams` peak: {{.ActivePeak}}{{if .HasGoroutines}} · `go_goroutines` peak: {{.Goroutines}}{{end}}
+{{- end}}
+{{end}}
+{{- template "environment" .}}
+
+{{template "config" .}}
+{{- template "notes" .}}
+
+Raw per-turn numbers: the `.csv` and `.json` files next to this report.

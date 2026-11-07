@@ -1,0 +1,49 @@
+{{- include "raggie.validate" . -}}
+{{- $c := .Values.config -}}
+{{- $g := .Values.embeddingsGateway -}}
+# Non-secret runtime config shared by every app container (envFrom).
+# Endpoints that depend on the datastore modes are set per container
+# (raggie.databaseEnv / redisEnv / s3Env) so a Secret reference can feed them.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "raggie.fullname" . }}-config
+  labels:
+    {{- include "raggie.labels" . | nindent 4 }}
+data:
+  RAGGIE_ENV: {{ $c.raggieEnv | quote }}
+  DEFAULT_LOCALE: {{ $c.defaultLocale | quote }}
+  NEXT_PUBLIC_DEFAULT_LOCALE: {{ $c.defaultLocale | quote }}
+  DEFAULT_TIMEZONE: {{ $c.defaultTimezone | default "UTC" | quote }}
+  EDGE_LOG_LEVEL: {{ $c.logLevel | quote }}
+  CONTROL_PLANE_LOG_LEVEL: {{ $c.logLevel | quote }}
+  WORKER_LOG_LEVEL: {{ $c.logLevel | quote }}
+  EMBEDDINGS_LOG_LEVEL: {{ $c.logLevel | quote }}
+  TRUSTED_PROXY_CIDRS: {{ $c.trustedProxyCidrs | quote }}
+  COOKIE_SECURE: {{ $c.cookieSecure | quote }}
+  ENABLE_HSTS: {{ $c.enableHsts | quote }}
+  {{- with $c.publicWebUrl }}
+  PUBLIC_WEB_URL: {{ . | quote }}
+  {{- end }}
+  WIDGET_EMBED_BASE_URL: {{ $c.widgetEmbedBaseUrl | default (printf "https://%s" .Values.ingress.public.host) | quote }}
+  WIDGET_STATIC_DIR: "/app/widget"
+  LLMAAS_BASE_URL: {{ include "raggie.llmBaseUrl" . | quote }}
+  LLMAAS_CHAT_MODEL: {{ $c.llm.chatModel | quote }}
+  REASONING_MODELS: {{ $c.llm.reasoningModels | quote }}
+  LLM_MODEL_PROFILES_JSON: {{ $c.llm.modelProfilesJson | quote }}
+  EMBEDDINGS_BASE_URL: "http://{{ include "raggie.componentName" (dict "root" . "component" "embeddings") }}:{{ .Values.embeddings.port }}/v1"
+  EMBEDDING_DIM: {{ $g.dim | quote }}
+  RETRIEVE_CANDIDATE_K: {{ $c.retrieval.candidateK | quote }}
+  RETRIEVE_CONTEXT_K: {{ $c.retrieval.contextK | quote }}
+  RETRIEVE_MAX_CHUNKS_PER_DOCUMENT: {{ $c.retrieval.maxChunksPerDocument | quote }}
+  RERANK_ENABLED: {{ $c.retrieval.rerankEnabled | quote }}
+  RERANK_CANDIDATE_K: {{ $c.retrieval.rerankCandidateK | quote }}
+  QDRANT_URL: {{ include "raggie.qdrantUrl" . | quote }}
+  QDRANT_REPLICATION_FACTOR: {{ .Values.vectordb.replicationFactor | quote }}
+  QDRANT_SHARD_NUMBER: {{ .Values.vectordb.shardNumber | quote }}
+  QDRANT_WRITE_CONSISTENCY_FACTOR: {{ .Values.vectordb.writeConsistencyFactor | quote }}
+  EDGE_URL: "http://{{ include "raggie.componentName" (dict "root" . "component" "edge") }}:{{ .Values.edge.port }}"
+  CONTROL_PLANE_URL: "http://{{ include "raggie.componentName" (dict "root" . "component" "control-plane") }}:{{ .Values.controlPlane.port }}"
+  {{- range $k, $v := $c.extraEnv }}
+  {{ $k }}: {{ $v | toString | quote }}
+  {{- end }}

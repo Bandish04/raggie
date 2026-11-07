@@ -1,0 +1,29 @@
+Raggie
+Copyright 2026 Ali Can Gündüz and the Raggie contributors
+
+This product is licensed under the Apache License, Version 2.0 (see LICENSE).
+
+Raggie bundles or downloads third-party software, fonts and machine-learning
+models, each under its own license. See THIRD_PARTY_NOTICES.md for software and
+fonts, and MODELS.md for the models (including the attribution they require).
+Bundled items whose licenses ask for attribution:
+
+- intfloat/multilingual-e5-large (in the embeddings "-local" image):
+  MIT License, Copyright (c) Microsoft Corporation. Full text:
+  services/embeddings/licenses/multilingual-e5-large-MIT.txt (/app/licenses/ in
+  the image).
+- Space Grotesk and Plus Jakarta Sans fonts (web): SIL Open Font License 1.1,
+  Copyright 2020 The Space Grotesk Project Authors and The Plus Jakarta Sans
+  Project Authors. Full texts: web/app/fonts/*/OFL.txt.
+- Material Symbols Outlined icon font (web): Apache License 2.0, Google LLC.
+  See web/public/fonts/material-symbols-outlined.LICENSE.txt.
+
+Container images built from this repository are based on Debian/Alpine and
+contain operating-system packages under their own licenses (including GPL and
+LGPL components such as glibc, bash, coreutils and busybox); their sources are
+available from the respective distributions. Each release publishes an SBOM per
+image. The web image includes libvips (LGPL-3.0-or-later) via the `sharp`
+package, dynamically linked and unmodified; its source is available at
+https://github.com/libvips/libvips. The full license texts are in
+licenses/LGPL-3.0.txt and licenses/GPL-3.0.txt (/licenses/ in release images,
+and attached to each release).

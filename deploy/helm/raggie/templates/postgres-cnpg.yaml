@@ -1,0 +1,168 @@
+{{- if eq .Values.postgresql.mode "cnpg" }}
+{{- $pg := .Values.postgresql -}}
+{{- $cn := $pg.cnpg -}}
+{{- $name := include "raggie.cnpgClusterName" . -}}
+{{- $backup := $cn.backup -}}
+# CloudNativePG Cluster. Requires the CNPG operator (and, for
+# backup.method=plugin, the Barman Cloud Plugin) installed cluster-wide; see
+# deploy/helm/README.md. Apps connect to <cluster>-rw (or the Pooler), which
+# always points at the current primary. The operator also creates the
+# <cluster>-app Secret the app pods read POSTGRES_PASSWORD from.
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "raggie.componentLabels" (dict "root" . "component" "postgres") | nindent 4 }}
+spec:
+  instances: {{ $cn.instances }}
+  imageName: {{ $cn.imageName }}
+  primaryUpdateStrategy: unsupervised
+  # Roll replicas first, then switch over instead of restarting the primary.
+  primaryUpdateMethod: switchover
+  enablePDB: true
+  postgresql:
+    parameters:
+      {{- toYaml $cn.parameters | nindent 6 }}
+    synchronous:
+      method: {{ $cn.synchronous.method }}
+      number: {{ $cn.synchronous.number }}
+      dataDurability: {{ $cn.synchronous.dataDurability }}
+  bootstrap:
+    initdb:
+      database: {{ $pg.database }}
+      owner: {{ $pg.user }}
+  storage:
+    size: {{ $cn.storage.size }}
+    {{- with ($cn.storage.storageClass | default .Values.storageClass) }}
+    storageClass: {{ . }}
+    {{- end }}
+  {{- if $cn.walStorage.enabled }}
+  walStorage:
+    size: {{ $cn.walStorage.size }}
+    {{- with ($cn.walStorage.storageClass | default .Values.storageClass) }}
+    storageClass: {{ . }}
+    {{- end }}
+  {{- end }}
+  affinity:
+    enablePodAntiAffinity: true
+    topologyKey: kubernetes.io/hostname
+    podAntiAffinityType: preferred
+  topologySpreadConstraints:
+    - maxSkew: 1
+      topologyKey: topology.kubernetes.io/zone
+      whenUnsatisfiable: ScheduleAnyway
+      labelSelector:
+        matchLabels:
+          cnpg.io/cluster: {{ $name }}
+  resources:
+    {{- toYaml $cn.resources | nindent 4 }}
+  {{- if and $backup.enabled (eq $backup.method "plugin") }}
+  plugins:
+    - name: barman-cloud.cloudnative-pg.io
+      isWALArchiver: true
+      parameters:
+        barmanObjectName: {{ $name }}-backup
+  {{- else if $backup.enabled }}
+  backup:
+    retentionPolicy: {{ $backup.retentionPolicy | quote }}
+    barmanObjectStore:
+      destinationPath: {{ $backup.destinationPath | quote }}
+      {{- with $backup.endpointURL }}
+      endpointURL: {{ . | quote }}
+      {{- end }}
+      s3Credentials:
+        accessKeyId:
+          name: {{ required "postgresql.cnpg.backup.s3CredentialsSecret is required" $backup.s3CredentialsSecret }}
+          key: ACCESS_KEY_ID
+        secretAccessKey:
+          name: {{ $backup.s3CredentialsSecret }}
+          key: ACCESS_SECRET_KEY
+      wal:
+        compression: gzip
+      data:
+        compression: gzip
+  {{- end }}
+{{- if and $backup.enabled (eq $backup.method "plugin") }}
+---
+# WAL archive + base backups in S3 (Barman Cloud Plugin) — enables PITR.
+apiVersion: barmancloud.cnpg.io/v1
+kind: ObjectStore
+metadata:
+  name: {{ $name }}-backup
+  labels:
+    {{- include "raggie.labels" . | nindent 4 }}
+spec:
+  retentionPolicy: {{ $backup.retentionPolicy | quote }}
+  configuration:
+    destinationPath: {{ $backup.destinationPath | quote }}
+    {{- with $backup.endpointURL }}
+    endpointURL: {{ . | quote }}
+    {{- end }}
+    s3Credentials:
+      accessKeyId:
+        name: {{ required "postgresql.cnpg.backup.s3CredentialsSecret is required" $backup.s3CredentialsSecret }}
+        key: ACCESS_KEY_ID
+      secretAccessKey:
+        name: {{ $backup.s3CredentialsSecret }}
+        key: ACCESS_SECRET_KEY
+    wal:
+      compression: gzip
+    data:
+      compression: gzip
+{{- end }}
+{{- if $backup.enabled }}
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: ScheduledBackup
+metadata:
+  name: {{ $name }}-daily
+  labels:
+    {{- include "raggie.labels" . | nindent 4 }}
+spec:
+  schedule: {{ $backup.schedule | quote }}
+  immediate: true
+  backupOwnerReference: self
+  cluster:
+    name: {{ $name }}
+  {{- if eq $backup.method "plugin" }}
+  method: plugin
+  pluginConfiguration:
+    name: barman-cloud.cloudnative-pg.io
+  {{- else }}
+  method: barmanObjectStore
+  {{- end }}
+{{- end }}
+{{- if $cn.pooler.enabled }}
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: Pooler
+metadata:
+  name: {{ $name }}-pooler-rw
+  labels:
+    {{- include "raggie.labels" . | nindent 4 }}
+spec:
+  cluster:
+    name: {{ $name }}
+  instances: {{ $cn.pooler.instances }}
+  type: rw
+  pgbouncer:
+    poolMode: {{ $cn.pooler.poolMode }}
+    parameters:
+      default_pool_size: {{ $cn.pooler.defaultPoolSize | quote }}
+      max_client_conn: "2000"
+      # asyncpg / pgx use prepared statements; PgBouncer >= 1.21 tracks them
+      # in transaction mode only when this is non-zero.
+      max_prepared_statements: "200"
+  template:
+    spec:
+      containers: []
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              cnpg.io/poolerName: {{ $name }}-pooler-rw
+{{- end }}
+{{- end }}

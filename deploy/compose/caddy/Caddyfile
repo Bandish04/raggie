@@ -1,0 +1,69 @@
+# Raggie front door: the single public origin for the web app, the widget
+# loader and the widget API.
+#
+#   RAGGIE_DOMAIN unset -> plain HTTP on :80 (local / LAN use)
+#   RAGGIE_DOMAIN=chat.example.com -> HTTPS with an automatic Let's Encrypt
+#     certificate (port 80 and 443 must be reachable from the internet) and an
+#     HTTP -> HTTPS redirect; ACME_EMAIL is the optional account contact.
+#
+# Caddy is the outermost proxy and trusts no upstream proxy (no trusted_proxies),
+# so it discards any X-Forwarded-* a client sends and sets them from the socket
+# peer. The services behind it key their per-IP rate limits on that value. If
+# you put another proxy or CDN in front of Caddy, add its ranges here with the
+# `trusted_proxies static <cidr...>` server option.
+{
+	email "{$ACME_EMAIL}"
+	servers {
+		timeouts {
+			# Slow-header protection; no read_body/write timeout, so long SSE
+			# streams and large uploads are not cut off.
+			read_header 10s
+			idle 2m
+		}
+	}
+}
+
+# Compose sets RAGGIE_SITE_ADDRESS from RAGGIE_DOMAIN (":80" when it is empty).
+{$RAGGIE_SITE_ADDRESS::80} {
+	# Internal edge endpoints (scheduler -> edge, inside the compose network)
+	# are never served publicly.
+	handle /api/v1/internal/* {
+		respond 404
+	}
+
+	# Browser-facing edge surface: the widget loader, the widget token exchange
+	# and the widget chat stream (the edge does CORS and origin checks).
+	@edge path /widgets/* /api/v1/widget/* /api/v1/chat/*
+	handle @edge {
+		reverse_proxy edge:8080 {
+			# SSE: write every chunk through immediately.
+			flush_interval -1
+			header_up X-Forwarded-For {remote_host}
+		}
+	}
+
+	# Everything else is the Next.js app (which proxies /api/chat SSE itself).
+	handle {
+		# Next.js does not compress (compress: false, because it buffers SSE), so
+		# compression happens here, for these response types only. Event streams
+		# are not on the list and pass through unencoded and unbuffered.
+		encode {
+			zstd
+			gzip
+			match {
+				header Content-Type text/html*
+				header Content-Type text/css*
+				header Content-Type text/plain*
+				header Content-Type text/javascript*
+				header Content-Type application/javascript*
+				header Content-Type application/json*
+				header Content-Type application/manifest+json*
+				header Content-Type image/svg+xml*
+			}
+		}
+		reverse_proxy web:3000 {
+			flush_interval -1
+			header_up X-Forwarded-For {remote_host}
+		}
+	}
+}

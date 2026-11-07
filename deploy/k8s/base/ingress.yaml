@@ -1,0 +1,42 @@
+# Two separate Ingresses — the first half of the A4 network boundary: the
+# public chat/widget surface (edge) and the admin surface (web) are reachable
+# only on distinct hostnames. NetworkPolicies (networkpolicy.yaml) enforce that
+# the admin services are unroutable from the public edge at the network level.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: raggie-public
+  labels: { raggie.io/surface: public }
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-buffering: "off" # SSE: stream, don't buffer
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: chat.raggie.example
+      http:
+        paths:
+          - path: /api/v1/chat
+            pathType: Prefix
+            backend: { service: { name: edge, port: { number: 8080 } } }
+          - path: /api/v1/widget
+            pathType: Prefix
+            backend: { service: { name: edge, port: { number: 8080 } } }
+          - path: /widgets
+            pathType: Prefix
+            backend: { service: { name: edge, port: { number: 8080 } } }
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: raggie-admin
+  labels: { raggie.io/surface: admin }
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: admin.raggie.example
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend: { service: { name: web, port: { number: 3000 } } }

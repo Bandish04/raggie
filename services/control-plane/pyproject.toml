@@ -1,0 +1,77 @@
+[project]
+name = "raggie-control-plane"
+version = "0.1.0"
+description = "Raggie control plane — admin/management API (orgs, teams, RBAC/ABAC, workspaces, settings)."
+license = "Apache-2.0"
+requires-python = ">=3.13"
+dependencies = [
+    "fastapi>=0.162",
+    # Floors pinned above versions with published advisories (pip-audit clean).
+    "starlette>=1.3.1",
+    "uvicorn[standard]>=0.32",
+    "pydantic-settings>=2.6",
+    "prometheus-client>=0.21",
+    "asyncpg>=0.30",
+    "argon2-cffi>=23.1",
+    "pyjwt>=2.15",
+    "redis>=5.0",
+    "minio>=7.2",
+    "python-multipart>=0.0.31",
+    "httpx>=0.27",
+    # UTS #46 IDN -> punycode for widget CORS origins (matches browsers).
+    "idna>=3.10",
+    "cryptography>=50",
+    "numpy>=1.26",
+    "croniter>=2.0",
+    # IANA tz database for zoneinfo (slim Docker images / Windows have no system copy).
+    "tzdata>=2024.1",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3",
+    "pytest-asyncio>=0.24",
+    "httpx>=0.27",
+    "ruff==0.15.15",
+    "hypothesis>=6.100",  # property/fuzz tests
+    "pyyaml>=6.0",  # tests/security/authz_policy.yaml
+    "mypy>=1.13",
+    "respx>=0.22",
+]
+
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["raggie_control_plane"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py313"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.ruff.lint.flake8-bugbear]
+# FastAPI dependency-injection markers are safe as argument defaults.
+extend-immutable-calls = [
+    "fastapi.Depends",
+    "fastapi.Query",
+    "fastapi.Path",
+    "fastapi.Header",
+    "fastapi.Security",
+    "fastapi.File",
+    "fastapi.Form",
+]
+
+[tool.pytest.ini_options]
+addopts = "-q"
+testpaths = ["tests"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+# Starlette's TestClient (via fastapi.testclient) warns on import that httpx is
+# deprecated in favour of httpx2; only that message is silenced.
+filterwarnings = [
+    'ignore:Using `httpx` with `starlette\.testclient` is deprecated:UserWarning',
+]

@@ -1,0 +1,113 @@
+PAROLA POLİTİKASI (ARŞİV)
+=========================
+
+ARŞİV KOPYASI — Bu sürüm 1 Mart 2026 tarihinde yürürlükten kaldırılmıştır. Güncel kurallar için BT-POL-002 Parola ve Erişim Yönetimi Politikası Sürüm 2.0'a bakınız.
+
+Doküman No: BT-POL-002
+Sürüm: 1.3
+Sahibi: Emre Kaya, BT Müdürü
+Onaylayan: Mehmet Yılmaz, CEO
+Yürürlük: 15 Ocak 2025
+Yürürlükten kalkış: 1 Mart 2026 (yerini v2.0 almıştır)
+Yayın Tarihi: 10.01.2025
+Gizlilik: Şirket İçi
+
+
+1. Amaç ve Kapsam
+-----------------
+
+Bu politika, Nebula Teknoloji çalışanlarının ve yüklenicilerinin kurumsal
+sistemlere erişimde kullandığı parolaların oluşturulması, saklanması ve
+değiştirilmesine ilişkin asgari kuralları belirler. Politika İstanbul ve
+Ankara ofislerindeki tüm kullanıcılar ile uzaktan çalışanlar için geçerlidir.
+Sürüm 1.3, 2024 yılında yayımlanan v1.2'deki parola geçmişi ve kilitleme
+kurallarını güncellemek amacıyla hazırlanmıştır.
+
+
+2. Parola Oluşturma
+-------------------
+
+  - Parolalar en az 12 karakter uzunluğunda olmalıdır.
+  - Parola; büyük harf, küçük harf, rakam ve özel karakterden en az üçünü
+    içermelidir.
+  - Kullanıcı adı, ad-soyad, doğum tarihi veya şirket adı parolada
+    kullanılamaz.
+  - Parola geçmişi son 5 parolayı tutar; bu parolalar yeniden kullanılamaz.
+
+
+3. Parola Değişimi
+------------------
+
+Kullanıcı parolaları 90 günde bir değiştirilmelidir. Süresi dolmadan 7 gün
+önce kullanıcıya e-posta ile hatırlatma gönderilir; süre dolduğunda ilk
+girişte parola değişimi zorunlu tutulur. Servis hesaplarının parolaları yılda
+bir kez, sistem sahibinin gözetiminde değiştirilir.
+
+
+4. Hesap Kilitleme ve Oturum
+----------------------------
+
+  - Art arda 5 hatalı denemeden sonra hesap 30 dakika süreyle kilitlenir.
+  - Kilit süresi dolmadan hesabın açılması için BT Yardım Masası'na kimlik
+    doğrulamalı talep açılır.
+  - Ekran kilidi 15 dakika hareketsizlikten sonra devreye girer.
+
+
+5. Çok Faktörlü Kimlik Doğrulama
+--------------------------------
+
+MFA yalnızca VPN bağlantılarında ve kurumsal e-posta erişiminde zorunludur.
+Diğer sistemlerde MFA kullanımı önerilir ancak zorunlu değildir. Yönetici
+hesaplarında ikinci faktör olarak mobil doğrulama uygulamasından üretilen tek
+kullanımlık kod kullanılır.
+
+
+6. Parola Sıfırlama
+-------------------
+
+Unutulan parolalar self-servis sıfırlama ekranından, kayıtlı cep telefonuna
+gönderilen kodla sıfırlanır. Self-servis sıfırlamanın mümkün olmadığı
+durumlarda kullanıcı BT Yardım Masası'nı arar; Yardım Masası, kullanıcının
+yöneticisinden teyit almadan parola sıfırlamaz. Geçici parolalar ilk girişte
+değiştirilmek zorundadır ve 24 saat sonra geçersiz olur.
+
+
+7. Paylaşılan ve Servis Hesapları
+---------------------------------
+
+Birden fazla kişi tarafından kullanılan paylaşılan hesaplar yalnızca toplantı
+odası cihazları ve eğitim ortamları için açılabilir. Bu hesapların parolaları
+ekip parola kasasında tutulur ve hesabı kullanan kişilerden biri ayrıldığında
+derhal değiştirilir. Servis hesapları etkileşimli girişe kapatılır; parolaları
+yılda bir kez değiştirilir ve değişiklik değişiklik yönetimi kaydıyla
+belgelenir.
+
+
+8. Hesap Kapatma
+----------------
+
+İşten ayrılan çalışanın hesapları, ayrılış gününü izleyen 24 saat içinde BT
+ekibi tarafından kapatılır. Yüklenici hesapları sözleşme bitiş tarihinde devre
+dışı bırakılır. Kapatılan hesaplara ait e-posta kutuları 90 gün süreyle
+yöneticinin erişimine açık tutulur.
+
+
+9. Sorumluluklar
+----------------
+
+Rol               Sorumluluk
+----------------  -----------------------------------------------
+Kullanıcı         Parolayı gizli tutmak, 90 günde bir değiştirmek
+Yönetici          Ekip erişimlerini yılda bir onaylamak
+BT Yardım Masası  Kilit açma ve sıfırlama taleplerini doğrulamak
+BT Müdürü         Politikanın sahibi ve yıllık gözden geçirme
+
+
+10. Arşiv Notu
+--------------
+
+Bu belge yalnızca kayıt amacıyla saklanmaktadır. 2025 yılı iç denetiminde
+zorunlu 90 günlük değişimin zayıf ve ardışık parolalara yol açtığı tespit
+edilmiş, bu nedenle politika 16 Şubat 2026 tarihinde yayımlanan ve 1 Mart
+2026'da yürürlüğe giren Sürüm 2.0 ile tamamen yenilenmiştir. Bu arşiv
+kopyasındaki kurallar artık uygulanmaz.

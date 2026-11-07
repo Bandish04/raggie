@@ -1,0 +1,20 @@
+# kind cluster for the HA chaos suite: 1 control plane + 3 workers, each worker
+# in its own fake zone so zone/host spread, anti-affinity and PDBs behave as on
+# a 3-zone cluster.
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+name: raggie-ha
+networking:
+  # kindnet enforces NetworkPolicy (kind >= v0.24).
+  disableDefaultCNI: false
+nodes:
+  - role: control-plane
+  - role: worker
+    labels:
+      topology.kubernetes.io/zone: zone-a
+  - role: worker
+    labels:
+      topology.kubernetes.io/zone: zone-b
+  - role: worker
+    labels:
+      topology.kubernetes.io/zone: zone-c

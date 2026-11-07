@@ -1,0 +1,58 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Raggie edge: public widget surface",
+    "version": "1",
+    "description": "The edge endpoints reachable through the public front door (Caddy). The ZAP API scan imports this file; bootstrap.py fills in servers and the workspace id. Every other edge route is called server-side by the web app and is not routed publicly."
+  },
+  "servers": [{ "url": "http://localhost" }],
+  "paths": {
+    "/api/v1/widget/token": {
+      "post": {
+        "summary": "Exchange an allow-listed Origin for a short-lived widget token",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["workspace_id"],
+                "properties": { "workspace_id": { "type": "string", "example": "WORKSPACE_ID" } }
+              }
+            }
+          }
+        },
+        "responses": { "200": { "description": "token" }, "403": { "description": "origin not allowed" } }
+      }
+    },
+    "/api/v1/chat/stream": {
+      "post": {
+        "summary": "Widget chat (SSE), authorized by the widget token and Origin",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["workspace_id", "message"],
+                "properties": {
+                  "workspace_id": { "type": "string", "example": "WORKSPACE_ID" },
+                  "message": { "type": "string", "example": "What does the fixture document say?" },
+                  "conversation_id": { "type": "string", "example": "" },
+                  "locale": { "type": "string", "example": "en" }
+                }
+              }
+            }
+          }
+        },
+        "responses": { "200": { "description": "text/event-stream" }, "401": { "description": "bad token" } }
+      }
+    },
+    "/widgets/embed.js": {
+      "get": {
+        "summary": "Widget loader script",
+        "responses": { "200": { "description": "JavaScript" } }
+      }
+    }
+  }
+}

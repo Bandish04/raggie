@@ -1,0 +1,127 @@
+# Project-specific Semgrep rules (Python services).
+#
+#   uvx semgrep scan --config .semgrep/raggie.yml --metrics=off --no-git-ignore \
+#       services/control-plane/raggie_control_plane services/workers/raggie_workers
+#
+# Rule fixtures: uvx semgrep --test --config .semgrep/raggie.yml .semgrep/raggie.py
+#
+# A reviewed exception is suppressed on the reported line with
+#   # nosemgrep: <rule-id>  -- <why it is safe>
+
+rules:
+  - id: raggie-sql-built-from-strings
+    languages: [python]
+    severity: ERROR
+    message: >-
+      SQL text passed to $M() is built with an f-string / format() / % / "+".
+      Bind every value as a $n parameter. If only allow-listed identifiers are
+      interpolated (never request data), suppress with a nosemgrep reason.
+    patterns:
+      - pattern-either:
+          # Any interpolating f-string piece inside the call, including
+          # implicitly concatenated literals spread over several lines. Reported
+          # on the f-string line itself (where bandit's B608 also points).
+          - patterns:
+              - pattern-inside: $DB.$M(...)
+              - pattern-regex: (?<=[\s(,])[rR]?[fF][rR]?["'][^"'\n]*\{
+          - pattern: $DB.$M("..." % $X, ...)
+          - pattern: $DB.$M("...".format(...), ...)
+          - pattern: $DB.$M($A + $B, ...)
+          - pattern: |
+              $Q = f"..."
+              ...
+              $DB.$M($Q, ...)
+          - pattern: |
+              $Q = "...".format(...)
+              ...
+              $DB.$M($Q, ...)
+      - metavariable-regex:
+          metavariable: $M
+          regex: ^(execute|executemany|fetch|fetchrow|fetchval|copy_records_to_table)$
+
+  - id: raggie-documents-query-without-soft-delete-filter
+    languages: [python]
+    severity: WARNING
+    message: >-
+      Query reads/updates the documents table without `deleted_at IS NULL`.
+      Soft-deleted documents must stay invisible. If the query intentionally
+      targets deleted rows (purge/cascade) or filters through a constant,
+      suppress with a nosemgrep reason.
+    patterns:
+      - pattern: $DB.$M($SQL, ...)
+      - metavariable-regex:
+          metavariable: $M
+          regex: ^(execute|executemany|fetch|fetchrow|fetchval)$
+      - metavariable-regex:
+          metavariable: $SQL
+          regex: (?is).*\b(from|join|update)["'\s]+documents\b.*
+      - metavariable-regex:
+          metavariable: $SQL
+          regex: (?is)^(?!.*deleted_at["'\s]+IS["'\s]+NULL).*$
+
+  - id: raggie-secret-compared-without-hmac
+    languages: [python]
+    severity: ERROR
+    message: >-
+      `==`/`!=` on a token/secret/signature/key leaks timing. Compare with
+      hmac.compare_digest(a.encode(), b.encode()).
+    patterns:
+      - pattern-either:
+          - pattern: $X == $Y
+          - pattern: $X != $Y
+      - pattern-either:
+          - patterns:
+              - pattern: $X == $Y
+              - metavariable-regex:
+                  metavariable: $X
+                  regex: (?i).*(token|secret|signature|api_?key|password|hash).*
+          - patterns:
+              - pattern: $X == $Y
+              - metavariable-regex:
+                  metavariable: $Y
+                  regex: (?i).*(token|secret|signature|api_?key|password|hash).*
+          - patterns:
+              - pattern: $X != $Y
+              - metavariable-regex:
+                  metavariable: $X
+                  regex: (?i).*(token|secret|signature|api_?key|password|hash).*
+          - patterns:
+              - pattern: $X != $Y
+              - metavariable-regex:
+                  metavariable: $Y
+                  regex: (?i).*(token|secret|signature|api_?key|password|hash).*
+      # Comparisons against literals / None / lengths are not secret-dependent.
+      - pattern-not: $X == "..."
+      - pattern-not: $X != "..."
+      - pattern-not: '"..." == $Y'
+      - pattern-not: '"..." != $Y'
+      - pattern-not: $X == None
+      - pattern-not: $X != None
+      - pattern-not: len($X) == $Y
+      - pattern-not: $X == len($Y)
+
+  - id: raggie-http-call-without-timeout
+    languages: [python]
+    severity: WARNING
+    message: >-
+      Outbound HTTP without an explicit timeout can hang a worker/request
+      forever (or rely on an implicit library default). Pass timeout=...
+    pattern-either:
+      - patterns:
+          - pattern-either:
+              - pattern: requests.$M(...)
+              - pattern: httpx.$M(...)
+          - metavariable-regex:
+              metavariable: $M
+              regex: ^(get|post|put|patch|delete|head|options|request|stream)$
+          - pattern-not: $LIB.$M(..., timeout=$T, ...)
+      - patterns:
+          - pattern-either:
+              - pattern: httpx.Client(...)
+              - pattern: httpx.AsyncClient(...)
+              - pattern: requests.Session(...)
+          - pattern-not: httpx.Client(..., timeout=$T, ...)
+          - pattern-not: httpx.AsyncClient(..., timeout=$T, ...)
+      - patterns:
+          - pattern: urllib.request.urlopen(...)
+          - pattern-not: urllib.request.urlopen(..., timeout=$T, ...)

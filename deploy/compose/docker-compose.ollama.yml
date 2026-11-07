@@ -1,0 +1,54 @@
+# Local-LLM overlay: points every LLM consumer at the bundled Ollama (profile
+# `ollama`) and waits until OLLAMA_MODEL has been pulled, so the first chat
+# already has a model. No API key, no data leaves the host.
+#   docker compose -f deploy/compose/docker-compose.yml \
+#     -f deploy/compose/docker-compose.ollama.yml --profile core up -d
+# Add -f deploy/compose/docker-compose.gpu.yml for an NVIDIA GPU.
+#
+# Default model: qwen3:4b-instruct (Qwen3-4B-Instruct-2507, Apache-2.0, ~2.5 GB
+# Q4): multilingual including Turkish, tool calling, and no thinking phase, so it
+# answers at a usable speed on a CPU-only host (8 GB RAM is enough). Pick a
+# larger model with OLLAMA_MODEL (e.g. qwen3:8b) when a GPU is available.
+x-ollama-llm: &ollama-llm
+  LLMAAS_BASE_URL: http://ollama:11434/v1
+  LLMAAS_API_KEY: ollama # Ollama ignores it; the services require a value
+  LLMAAS_CHAT_MODEL: ${OLLAMA_MODEL:-qwen3:4b-instruct}
+  TOOL_MODELS: ${OLLAMA_MODEL:-qwen3:4b-instruct}
+  REASONING_MODELS: ""
+
+x-needs-model: &needs-model
+  ollama-pull:
+    condition: service_completed_successfully
+
+services:
+  # Run Ollama with the stack it serves (it is opt-in, profile `ollama`, otherwise).
+  ollama:
+    profiles: !override ["core", "ollama"]
+  ollama-pull:
+    profiles: !override ["core", "ollama"]
+  # CPU prompt processing of a full RAG prompt (~12 chunks) can take minutes on
+  # one shared CPU model, far past the cloud-sized defaults. Each knob is set
+  # only on the service that reads it.
+  edge:
+    environment:
+      <<: *ollama-llm
+      # Wait for the first byte of a chat answer (edge default 60 s).
+      LLMAAS_RESPONSE_HEADER_TIMEOUT_SECONDS: ${LLMAAS_RESPONSE_HEADER_TIMEOUT_SECONDS:-300}
+    depends_on: *needs-model
+  eval-worker:
+    environment:
+      <<: *ollama-llm
+      # The judge is non-streaming: the budget covers the whole reply (default 30 s,
+      # so faithfulness would never be scored). One judge call at a time, so the
+      # eval lane does not queue up against chat on the same CPU model.
+      EVAL_LLM_TIMEOUT_SECONDS: ${EVAL_LLM_TIMEOUT_SECONDS:-300}
+      EVAL_MAX_CONCURRENCY: ${EVAL_MAX_CONCURRENCY:-1}
+    depends_on: *needs-model
+  scheduler-worker:
+    environment:
+      <<: *ollama-llm
+      # A scheduled run waits on the edge, which itself may wait 300 s for the
+      # first byte and then generate: give up only after that (default 150 s).
+      SCHEDULER_TASK_TIMEOUT_SECONDS: ${SCHEDULER_TASK_TIMEOUT_SECONDS:-420}
+  control-plane:
+    environment: *ollama-llm

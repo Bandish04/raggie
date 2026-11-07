@@ -1,0 +1,24 @@
+Raggie {{ .Chart.AppVersion }} installed as "{{ .Release.Name }}" (profile: {{ .Values.profile }}).
+
+Datastores: postgresql={{ .Values.postgresql.mode }} valkey={{ .Values.valkey.mode }} vectordb={{ .Values.vectordb.mode }} s3={{ .Values.s3.mode }}
+
+Watch the rollout (control-plane turns Ready once the migration Job applied the schema):
+  kubectl -n {{ .Release.Namespace }} get pods -l app.kubernetes.io/instance={{ .Release.Name }} -w
+  kubectl -n {{ .Release.Namespace }} logs job/{{ include "raggie.componentName" (dict "root" . "component" "migrate") }}{{ if not .Release.IsUpgrade }}{{ if ne .Values.postgresql.mode "external" }}-install{{ end }}{{ end }}
+{{- if .Values.ingress.enabled }}
+
+Admin UI:  https://{{ .Values.ingress.admin.host }}
+Chat/widget: https://{{ .Values.ingress.public.host }}
+{{- else }}
+
+Port-forward the admin UI:
+  kubectl -n {{ .Release.Namespace }} port-forward svc/{{ include "raggie.componentName" (dict "root" . "component" "web") }} 3000:{{ .Values.web.port }}
+{{- end }}
+
+Create the first admin at /onboarding with SETUP_TOKEN from the
+{{ include "raggie.appSecretName" . }} Secret.
+{{- if .Values.secrets.generateDevSecret }}
+
+WARNING: secrets were generated for development (secrets.generateDevSecret).
+Do not use this install for production data.
+{{- end }}

@@ -1,0 +1,186 @@
+# ha profile: no single point of failure inside the cluster.
+#   * app services >= 2 replicas, zone/host spread, PDBs, HPA (edge, embeddings)
+#   * PostgreSQL: CloudNativePG Cluster (3 instances, quorum sync replication,
+#     Barman WAL archive + daily base backup to S3)       -> install the operator
+#   * Valkey: 3 x (valkey + sentinel) + HAProxy primary endpoint
+#   * Qdrant: official chart, 3 nodes, distributed mode, replication factor 2
+#   * S3: external object storage (recommended)
+# Prerequisites and the Secret layout: deploy/helm/README.md.
+#   helm install raggie deploy/helm/raggie -n raggie -f deploy/helm/raggie/values-ha.yaml \
+#     --set secrets.existingSecret=raggie-secrets --set s3.existingSecret=raggie-s3 ...
+profile: ha
+
+secrets:
+  existingSecret: raggie-secrets
+  generateDevSecret: false
+
+topologySpread:
+  enabled: true
+  strictHostname: false
+
+edge:
+  replicas: 3
+  pdb: { enabled: true, minAvailable: 1 }
+  hpa:
+    enabled: true
+    minReplicas: 3
+    maxReplicas: 12
+    targetCPUUtilizationPercentage: 70
+controlPlane:
+  replicas: 2
+  pdb: { enabled: true, minAvailable: 1 }
+web:
+  replicas: 2
+  pdb: { enabled: true, minAvailable: 1 }
+embeddings:
+  replicas: 2
+  pdb: { enabled: true, minAvailable: 1 }
+  hpa:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 6
+    targetCPUUtilizationPercentage: 70
+workers:
+  ingestion:
+    replicas: 2
+    pdb: { enabled: true, minAvailable: 1 }
+  eval:
+    replicas: 2
+    pdb: { enabled: true, minAvailable: 1 }
+  # Two schedulers are safe: due tasks are claimed with FOR UPDATE SKIP LOCKED.
+  scheduler:
+    replicas: 2
+    pdb: { enabled: true, minAvailable: 1 }
+
+# KEDA instead of / on top of the CPU HPA: flip keda.enabled and the
+# per-component switches (KEDA must be installed).
+keda:
+  enabled: false
+  edge: { enabled: false }
+  ingestion: { enabled: false }
+  eval: { enabled: false }
+
+postgresql:
+  mode: cnpg
+  cnpg:
+    instances: 3
+    synchronous: { method: any, number: 1, dataDurability: required }
+    storage: { size: 50Gi }
+    pooler: { enabled: false }
+    backup:
+      enabled: true
+      method: plugin
+      destinationPath: "s3://raggie-backups/postgres"
+      endpointURL: ""
+      s3CredentialsSecret: raggie-backup-s3
+      retentionPolicy: "30d"
+      schedule: "0 0 2 * * *"
+
+valkey:
+  mode: sentinel
+  replicas: 3
+  auth: true
+  appendonly: true
+  sentinel:
+    quorum: 2
+  # Every service follows the Sentinel primary itself; enable the HAProxy
+  # primary endpoint only for external tools that cannot.
+  haproxy:
+    enabled: false
+    replicas: 2
+
+vectordb:
+  mode: cluster
+  replicationFactor: 2
+  # A multiple of the node count so shards spread evenly.
+  shardNumber: 3
+  writeConsistencyFactor: 1
+
+qdrant:
+  enabled: true
+  replicaCount: 3
+  image:
+    # Non-root image: no chown init container (Pod Security restricted).
+    # Tag-pinned to the chart appVersion (v1.20.0-unprivileged): the qdrant
+    # chart semver-parses image.tag, so it cannot carry an @sha256 digest.
+    useUnprivilegedImage: true
+  config:
+    cluster:
+      enabled: true
+      p2p: { port: 6335 }
+      consensus: { tick_period_ms: 100 }
+  # The qdrant chart reads the key from this Secret with `lookup` at render
+  # time, so the Secret must exist before `helm install`.
+  apiKey:
+    valueFrom:
+      secretKeyRef:
+        name: raggie-secrets
+        key: QDRANT_API_KEY
+  persistence:
+    size: 50Gi
+  snapshotPersistence:
+    enabled: true
+    size: 50Gi
+  podDisruptionBudget:
+    enabled: true
+    maxUnavailable: 1
+    unhealthyPodEvictionPolicy: AlwaysAllow
+  resources:
+    requests: { cpu: 500m, memory: 1Gi }
+    limits: { memory: 4Gi }
+  podSecurityContext:
+    fsGroup: 3000
+    fsGroupChangePolicy: OnRootMismatch
+    runAsNonRoot: true
+    seccompProfile: { type: RuntimeDefault }
+  containerSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 1000
+    runAsGroup: 2000
+    allowPrivilegeEscalation: false
+    privileged: false
+    readOnlyRootFilesystem: true
+    capabilities: { drop: ["ALL"] }
+    seccompProfile: { type: RuntimeDefault }
+  affinity:
+    podAntiAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+        - weight: 100
+          podAffinityTerm:
+            topologyKey: kubernetes.io/hostname
+            labelSelector:
+              matchLabels:
+                app.kubernetes.io/name: qdrant
+  topologySpreadConstraints:
+    - maxSkew: 1
+      topologyKey: topology.kubernetes.io/zone
+      whenUnsatisfiable: ScheduleAnyway
+      labelSelector:
+        matchLabels:
+          app.kubernetes.io/name: qdrant
+
+s3:
+  mode: external
+  bucket: raggie-uploads
+  external:
+    endpoint: "s3.example.com"
+    useSSL: true
+  existingSecret: raggie-s3
+  accessKeyKey: accessKey
+  secretKeyKey: secretKey
+
+ingress:
+  enabled: true
+  className: nginx
+  clusterIssuer: letsencrypt-prod
+  public:
+    host: chat.raggie.example
+  admin:
+    host: admin.raggie.example
+
+config:
+  publicWebUrl: "https://admin.raggie.example"
+  widgetEmbedBaseUrl: "https://chat.raggie.example"
+
+networkPolicy:
+  enabled: true

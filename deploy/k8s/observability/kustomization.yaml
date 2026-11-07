@@ -1,0 +1,7 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Observability stack (own namespace). Referenced by the prod overlay; kept out
+# of dev (and out of the compose `core` profile) so it's strictly opt-in.
+resources:
+  - stack.yaml

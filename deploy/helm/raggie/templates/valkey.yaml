@@ -1,0 +1,434 @@
+{{- define "raggie.valkeyEnv" -}}
+- name: POD_NAME
+  valueFrom: { fieldRef: { fieldPath: metadata.name } }
+- name: POD_NAMESPACE
+  valueFrom: { fieldRef: { fieldPath: metadata.namespace } }
+- name: POD_IP
+  valueFrom: { fieldRef: { fieldPath: status.podIP } }
+{{- if .Values.valkey.auth }}
+- name: REDIS_PASSWORD
+  valueFrom:
+    secretKeyRef:
+      name: {{ include "raggie.appSecretName" . }}
+      key: REDIS_PASSWORD
+{{- end }}
+{{- end -}}
+{{- $v := .Values.valkey -}}
+{{- if ne $v.mode "external" }}
+{{- $sel := dict "root" . "component" "valkey" -}}
+{{- $name := include "raggie.valkeyName" . -}}
+{{- $sentinel := eq $v.mode "sentinel" -}}
+{{- $replicas := ternary (int $v.replicas) 1 $sentinel -}}
+# Valkey (official image). standalone: one pod. sentinel: N valkey + N
+# sentinel containers; the first pod bootstraps as primary, later starts ask the
+# sentinels for the current primary so a restarted pod rejoins as a replica.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $name }}-scripts
+  labels:
+    {{- include "raggie.componentLabels" $sel | nindent 4 }}
+data:
+  common.sh: |
+    # Shared by the valkey and sentinel containers.
+    HEADLESS="{{ $name }}-headless.${POD_NAMESPACE}.svc"
+    ME="${POD_NAME}.${HEADLESS}"
+    if [ -n "${REDIS_PASSWORD:-}" ]; then export REDISCLI_AUTH="$REDIS_PASSWORD"; fi
+    # Print the primary host the other sentinels agree on, or nothing.
+    find_primary() {
+      i=0
+      while [ "$i" -lt {{ $replicas }} ]; do
+        host="{{ $name }}-$i.${HEADLESS}"
+        if [ "$host" != "$ME" ]; then
+          m=$(timeout 3 valkey-cli -h "$host" -p 26379 --no-auth-warning \
+            sentinel get-master-addr-by-name {{ $v.sentinel.masterSet }} 2>/dev/null | head -n1 || true)
+          if [ -n "$m" ]; then echo "$m"; return 0; fi
+        fi
+        i=$((i + 1))
+      done
+    }
+    # Pod 0 bootstraps the set when no sentinel knows a primary yet.
+    primary_or_bootstrap() {
+      p=$(find_primary)
+      if [ -z "$p" ]; then p="{{ $name }}-0.${HEADLESS}"; fi
+      echo "$p"
+    }
+  valkey.sh: |
+    #!/bin/sh
+    set -eu
+    . /scripts/common.sh
+    conf=/etc/valkey/valkey.conf
+    {
+      echo "port 6379"
+      echo "dir /data"
+      echo "protected-mode no"
+      echo "appendonly {{ ternary "yes" "no" $v.appendonly }}"
+      echo "appendfsync everysec"
+      if [ -n "${REDIS_PASSWORD:-}" ]; then
+        echo "requirepass $REDIS_PASSWORD"
+        echo "masterauth $REDIS_PASSWORD"
+      fi
+    } > "$conf"
+    {{- if $sentinel }}
+    {
+      echo "replica-announce-ip $ME"
+      echo "min-replicas-to-write {{ $v.minReplicasToWrite }}"
+      echo "min-replicas-max-lag {{ $v.minReplicasMaxLag }}"
+    } >> "$conf"
+    primary=$(primary_or_bootstrap)
+    if [ "$primary" != "$ME" ] && [ "$primary" != "${POD_IP}" ]; then
+      echo "starting as replica of $primary"
+      echo "replicaof $primary 6379" >> "$conf"
+    else
+      echo "starting as primary"
+    fi
+    {{- end }}
+    exec valkey-server "$conf"
+  {{- if $sentinel }}
+  sentinel.sh: |
+    #!/bin/sh
+    set -eu
+    . /scripts/common.sh
+    # Wait until this pod's DNS name resolves (headless publishes not-ready).
+    until getent hosts "$ME" >/dev/null 2>&1; do sleep 1; done
+    primary=$(primary_or_bootstrap)
+    until getent hosts "$primary" >/dev/null 2>&1; do sleep 1; done
+    conf=/sentinel/sentinel.conf
+    {
+      echo "port 26379"
+      echo "sentinel resolve-hostnames yes"
+      echo "sentinel announce-hostnames yes"
+      echo "sentinel announce-ip $ME"
+      echo "sentinel monitor {{ $v.sentinel.masterSet }} $primary 6379 {{ $v.sentinel.quorum }}"
+      echo "sentinel down-after-milliseconds {{ $v.sentinel.masterSet }} {{ $v.sentinel.downAfterMilliseconds }}"
+      echo "sentinel failover-timeout {{ $v.sentinel.masterSet }} {{ $v.sentinel.failoverTimeout }}"
+      echo "sentinel parallel-syncs {{ $v.sentinel.masterSet }} 1"
+      if [ -n "${REDIS_PASSWORD:-}" ]; then
+        echo "requirepass $REDIS_PASSWORD"
+        echo "sentinel auth-pass {{ $v.sentinel.masterSet }} $REDIS_PASSWORD"
+        echo "sentinel sentinel-pass $REDIS_PASSWORD"
+      fi
+    } > "$conf"
+    exec valkey-sentinel "$conf"
+  {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $name }}-headless
+  labels:
+    {{- include "raggie.componentLabels" $sel | nindent 4 }}
+spec:
+  clusterIP: None
+  # Sentinels resolve peers before they are Ready.
+  publishNotReadyAddresses: true
+  selector:
+    {{- include "raggie.selectorLabels" $sel | nindent 4 }}
+  ports:
+    - name: valkey
+      port: 6379
+      targetPort: valkey
+    {{- if $sentinel }}
+    - name: sentinel
+      port: 26379
+      targetPort: sentinel
+    {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "raggie.componentLabels" $sel | nindent 4 }}
+spec:
+  selector:
+    {{- include "raggie.selectorLabels" $sel | nindent 4 }}
+  ports:
+    {{- if $sentinel }}
+    - name: sentinel
+      port: 26379
+      targetPort: sentinel
+    {{- else }}
+    - name: valkey
+      port: 6379
+      targetPort: valkey
+    {{- end }}
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "raggie.componentLabels" $sel | nindent 4 }}
+spec:
+  serviceName: {{ $name }}-headless
+  replicas: {{ $replicas }}
+  podManagementPolicy: Parallel
+  selector:
+    matchLabels:
+      {{- include "raggie.selectorLabels" $sel | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "raggie.componentLabels" $sel | nindent 8 }}
+      annotations:
+        checksum/scripts: {{ printf "%v" $v | sha256sum }}
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 999
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      {{- if $sentinel }}
+      {{- include "raggie.antiAffinity" $sel | nindent 6 }}
+      {{- include "raggie.topologySpread" $sel | nindent 6 }}
+      {{- end }}
+      containers:
+        - name: valkey
+          image: {{ $v.image }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["sh", "/scripts/valkey.sh"]
+          securityContext:
+            {{- include "raggie.containerSecurityContext" . | nindent 12 }}
+          env:
+            {{- include "raggie.valkeyEnv" . | nindent 12 }}
+          ports:
+            - name: valkey
+              containerPort: 6379
+          readinessProbe:
+            exec:
+              command: ["sh", "-c", "REDISCLI_AUTH=\"${REDIS_PASSWORD:-}\" valkey-cli --no-auth-warning ping | grep -q PONG"]
+            periodSeconds: 5
+          livenessProbe:
+            exec:
+              command: ["sh", "-c", "REDISCLI_AUTH=\"${REDIS_PASSWORD:-}\" valkey-cli --no-auth-warning ping | grep -q PONG"]
+            initialDelaySeconds: 20
+            periodSeconds: 10
+          resources:
+            {{- toYaml $v.resources | nindent 12 }}
+          volumeMounts:
+            - name: data
+              mountPath: /data
+            - name: conf
+              mountPath: /etc/valkey
+            - name: scripts
+              mountPath: /scripts
+            {{- include "raggie.tmpVolumeMount" . | nindent 12 }}
+        {{- if $sentinel }}
+        - name: sentinel
+          image: {{ $v.image }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["sh", "/scripts/sentinel.sh"]
+          securityContext:
+            {{- include "raggie.containerSecurityContext" . | nindent 12 }}
+          env:
+            {{- include "raggie.valkeyEnv" . | nindent 12 }}
+          ports:
+            - name: sentinel
+              containerPort: 26379
+          readinessProbe:
+            exec:
+              command: ["sh", "-c", "REDISCLI_AUTH=\"${REDIS_PASSWORD:-}\" valkey-cli --no-auth-warning -p 26379 ping | grep -q PONG"]
+            periodSeconds: 5
+          livenessProbe:
+            exec:
+              command: ["sh", "-c", "REDISCLI_AUTH=\"${REDIS_PASSWORD:-}\" valkey-cli --no-auth-warning -p 26379 ping | grep -q PONG"]
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          resources:
+            requests: { cpu: 25m, memory: 32Mi }
+            limits: { memory: 64Mi }
+          volumeMounts:
+            - name: sentinel
+              mountPath: /sentinel
+            - name: scripts
+              mountPath: /scripts
+            {{- include "raggie.tmpVolumeMount" . | nindent 12 }}
+        {{- end }}
+      volumes:
+        - name: conf
+          emptyDir: {}
+        - name: scripts
+          configMap:
+            name: {{ $name }}-scripts
+        {{- if $sentinel }}
+        - name: sentinel
+          emptyDir: {}
+        {{- end }}
+        {{- include "raggie.tmpVolume" . | nindent 8 }}
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        {{- with ($v.persistence.storageClass | default .Values.storageClass) }}
+        storageClassName: {{ . }}
+        {{- end }}
+        resources:
+          requests:
+            storage: {{ $v.persistence.size }}
+{{- if $sentinel }}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "raggie.componentLabels" $sel | nindent 4 }}
+spec:
+  # Keep a sentinel quorum (and a replica to promote) through drains.
+  minAvailable: {{ $v.sentinel.quorum }}
+  unhealthyPodEvictionPolicy: AlwaysAllow
+  selector:
+    matchLabels:
+      {{- include "raggie.selectorLabels" $sel | nindent 6 }}
+{{- if $v.haproxy.enabled }}
+{{- $hsel := dict "root" . "component" "valkey-primary" }}
+---
+# "Always the primary" TCP endpoint for clients without Sentinel support:
+# HAProxy routes only to the node reporting role:master and cuts sessions to
+# a node the moment it stops being primary.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $name }}-haproxy
+  labels:
+    {{- include "raggie.componentLabels" $hsel | nindent 4 }}
+data:
+  haproxy.cfg: |
+    global
+      maxconn 4096
+    resolvers kube
+      parse-resolv-conf
+      hold valid 5s
+    defaults
+      mode tcp
+      timeout connect 3s
+      # XREADGROUP BLOCK keeps connections idle for long stretches.
+      timeout client 1h
+      timeout server 1h
+      timeout check 2s
+    frontend health
+      mode http
+      bind :8404
+      monitor-uri /healthz
+      monitor fail if { nbsrv(primary) lt 1 }
+    frontend valkey
+      bind :6379
+      default_backend primary
+    backend primary
+      option tcp-check
+      tcp-check connect
+      {{- if $v.auth }}
+      tcp-check send "AUTH ${REDIS_PASSWORD}\r\n"
+      tcp-check expect string +OK
+      {{- end }}
+      tcp-check send PING\r\n
+      tcp-check expect string +PONG
+      tcp-check send info\ replication\r\n
+      tcp-check expect string role:master
+      tcp-check send QUIT\r\n
+      tcp-check expect string +OK
+      default-server check inter 1s fall 2 rise 2 on-marked-down shutdown-sessions resolvers kube init-addr none
+      {{- range $i := until $replicas }}
+      server valkey{{ $i }} {{ $name }}-{{ $i }}.{{ $name }}-headless.{{ $.Release.Namespace }}.svc:6379
+      {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $name }}-primary
+  labels:
+    {{- include "raggie.componentLabels" $hsel | nindent 4 }}
+spec:
+  selector:
+    {{- include "raggie.selectorLabels" $hsel | nindent 4 }}
+  ports:
+    - name: valkey
+      port: 6379
+      targetPort: valkey
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $name }}-primary
+  labels:
+    {{- include "raggie.componentLabels" $hsel | nindent 4 }}
+spec:
+  replicas: {{ $v.haproxy.replicas }}
+  selector:
+    matchLabels:
+      {{- include "raggie.selectorLabels" $hsel | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "raggie.componentLabels" $hsel | nindent 8 }}
+      annotations:
+        checksum/config: {{ printf "%v%v" $v .Release.Namespace | sha256sum }}
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 99
+        runAsGroup: 99
+        seccompProfile:
+          type: RuntimeDefault
+      {{- include "raggie.antiAffinity" $hsel | nindent 6 }}
+      {{- include "raggie.topologySpread" $hsel | nindent 6 }}
+      containers:
+        - name: haproxy
+          image: {{ $v.haproxy.image }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          securityContext:
+            {{- include "raggie.containerSecurityContext" . | nindent 12 }}
+          {{- if $v.auth }}
+          env:
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "raggie.appSecretName" . }}
+                  key: REDIS_PASSWORD
+          {{- end }}
+          ports:
+            - name: valkey
+              containerPort: 6379
+            - name: health
+              containerPort: 8404
+          readinessProbe:
+            httpGet: { path: /healthz, port: health }
+            periodSeconds: 2
+            failureThreshold: 2
+          livenessProbe:
+            tcpSocket: { port: valkey }
+            periodSeconds: 10
+          resources:
+            {{- toYaml $v.haproxy.resources | nindent 12 }}
+          volumeMounts:
+            - name: config
+              mountPath: /usr/local/etc/haproxy
+              readOnly: true
+            {{- include "raggie.tmpVolumeMount" . | nindent 12 }}
+      volumes:
+        - name: config
+          configMap:
+            name: {{ $name }}-haproxy
+        {{- include "raggie.tmpVolume" . | nindent 8 }}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ $name }}-primary
+  labels:
+    {{- include "raggie.componentLabels" $hsel | nindent 4 }}
+spec:
+  minAvailable: 1
+  unhealthyPodEvictionPolicy: AlwaysAllow
+  selector:
+    matchLabels:
+      {{- include "raggie.selectorLabels" $hsel | nindent 6 }}
+{{- end }}
+{{- end }}
+{{- end }}

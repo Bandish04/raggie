@@ -1,0 +1,20 @@
+# ZAP rule overrides for the nightly DAST job (zap-baseline.py / zap-api-scan.py -c).
+# Format: <plugin id><TAB><IGNORE|WARN|FAIL><TAB><justification> -- exactly three
+# tab-separated columns (ZAP's loader), no tabs inside the justification.
+# Unlisted rules default to WARN. tests/security/zap/assert_report.py fails the job
+# on every High alert (unless IGNOREd here) and on every FAIL rule at any risk.
+#
+# Gated (FAIL): the Medium findings that are regressions for this app.
+10038	FAIL	CSP header not set: next.config.ts sets a CSP on every page; a page without one is a regression
+10020	FAIL	Anti-clickjacking header missing: the app sends X-Frame-Options DENY + frame-ancestors 'none'
+10010	FAIL	Cookie without HttpOnly: session/refresh cookies must never be readable by page scripts
+10054	FAIL	Cookie without SameSite: SameSite is part of the CSRF defence (with the Origin check)
+10098	FAIL	Cross-domain misconfiguration: no wildcard Access-Control-Allow-Origin anywhere (A4)
+40040	FAIL	CORS misconfiguration (active): the widget surface may reflect only allow-listed origins
+#
+# Known false positives / accepted, kept visible as WARN with the reason.
+10011	WARN	Cookie without Secure: the e2e stack is plain HTTP (COOKIE_SECURE=false); production sets Secure automatically
+10055	WARN	CSP unsafe-inline: static nonce-less CSP needs it for the App Router RSC payload and inline brand styles (next.config.ts)
+10202	WARN	No anti-CSRF tokens: CSRF is defended by SameSite cookies + the web Origin check, APIs use bearer tokens
+10027	IGNORE	Suspicious comments: matches inside minified framework bundles, not application code
+10109	IGNORE	Modern web application: informational detection that the app is a JS SPA

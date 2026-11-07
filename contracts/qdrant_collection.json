@@ -1,0 +1,12 @@
+{
+  "_comment": "Single source of truth for Qdrant collection naming. Both the Python ingester and the Go edge derive the collection name from a workspace's effective embedding dimension and MUST agree on these vectors (CI drift gate).",
+  "scheme": "raggie_chunks_d{dim}",
+  "vectors": [
+    { "dim": 8, "name": "raggie_chunks_d8" },
+    { "dim": 384, "name": "raggie_chunks_d384" },
+    { "dim": 768, "name": "raggie_chunks_d768" },
+    { "dim": 1024, "name": "raggie_chunks_d1024" },
+    { "dim": 1536, "name": "raggie_chunks_d1536" },
+    { "dim": 3072, "name": "raggie_chunks_d3072" }
+  ]
+}

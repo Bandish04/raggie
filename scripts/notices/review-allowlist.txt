@@ -1,0 +1,10 @@
+# SPDX-License-Identifier: Apache-2.0
+# Approved "Review required" entries of THIRD_PARTY_NOTICES.md (checked by
+# scripts/notices/check_review.py in the release workflow).
+# Format: <package name or glob><TAB><exact license expression><TAB><justification>
+# The license must match exactly: a dependency that changes license is re-reviewed.
+
+@img/sharp-libvips-*	LGPL-3.0-or-later	libvips ships as an unmodified shared library that sharp loads dynamically (platform package per image); LGPL obligations are met by notice + replaceable library
+certifi	MPL-2.0	unmodified Mozilla CA bundle; MPL-2.0 is file-level copyleft and we do not modify its files
+tqdm	MPL-2.0 AND MIT	unmodified progress-bar library; MPL-2.0 parts are file-level copyleft and we do not modify its files
+caniuse-lite	CC-BY-4.0	browser-support data; CC-BY only requires attribution, which THIRD_PARTY_NOTICES.md provides

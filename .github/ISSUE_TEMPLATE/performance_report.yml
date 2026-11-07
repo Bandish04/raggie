@@ -1,0 +1,63 @@
+name: Performance report
+description: Report a latency, throughput, memory or ingestion-speed problem
+title: "[Performance]: "
+labels: ["performance", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Concrete numbers make performance issues actionable. Include how you measured
+        and on what hardware, so others can reproduce it.
+  - type: dropdown
+    id: path
+    attributes:
+      label: Path under test
+      options:
+        - Retrieval (search before the LLM)
+        - Chat streaming (time to first token, token rate)
+        - Ingestion (parse / chunk / embed)
+        - Reranking
+        - Embeddings gateway
+        - Web UI rendering
+        - Other
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Raggie version or commit
+    validations:
+      required: true
+  - type: textarea
+    id: scenario
+    attributes:
+      label: Scenario
+      description: Workload, data size (documents, pages, chunks), concurrency, embeddings mode (local / cloud) and LLM provider.
+    validations:
+      required: true
+  - type: textarea
+    id: hardware
+    attributes:
+      label: Hardware and deployment
+      description: CPU cores, RAM, GPU (if any), disk, Compose or Kubernetes, replica counts, relevant settings (e.g. OMP_NUM_THREADS, INGEST_MAX_CONCURRENCY).
+    validations:
+      required: true
+  - type: textarea
+    id: measured
+    attributes:
+      label: Measured result
+      description: p50 / p95 / p99, throughput, memory, or duration — with the command or tool used.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected result
+      description: What you expected, and why (a previous version, a documented budget, another tool).
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Evidence
+      description: Benchmark scripts, profiles, dashboards or logs (remove secrets and document text).

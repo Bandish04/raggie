@@ -1,0 +1,142 @@
+# Overlay on values-ha.yaml for the kind chaos cluster: same topology (every
+# datastore replicated, apps >= 2), smaller footprint, local images, an
+# offline LLM and embeddings upstream, no ingress/TLS/backup. Sized for a
+# GitHub-hosted ubuntu-latest runner (2-4 CPU, ~7 GB RAM) running
+# .github/workflows/ha-chaos.yml; scripts/ha/validate-chart.sh renders it
+# (variant "kind").
+image:
+  registry: raggie
+  prefix: ""
+  tag: dev
+  pullPolicy: Never
+
+secrets:
+  existingSecret: raggie-secrets
+
+config:
+  cookieSecure: false
+  enableHsts: false
+  publicWebUrl: "http://localhost:3000"
+  widgetEmbedBaseUrl: "http://localhost:8080"
+
+ingress:
+  enabled: false
+
+mockLLM:
+  enabled: true
+  image: { repository: raggie/mockllm, tag: dev }
+  # ~35 tokens x 150 ms: streams last ~5 s, long enough to kill an edge mid-stream.
+  env:
+    MOCKLLM_TOKEN_DELAY_MS: "150"
+
+# Cloud mode against scripts/ha/manifests/mock-embeddings.yaml (deterministic
+# hashed bag-of-words vectors); the slim image bakes only the BM25 model.
+embeddingsGateway:
+  provider: openai_compatible
+  model: mock-embed
+  dim: "1024"
+  upstreamBaseUrl: "http://mock-embeddings:8080/v1"
+  rerankerProvider: none
+
+edge:
+  replicas: 2
+  hpa: { enabled: true, minReplicas: 2, maxReplicas: 3 }
+  # Short drain so a graceful delete really interrupts the ~5 s mock streams:
+  # clients get `event: reconnect` and must resume with resume_message_id on
+  # the other replica (scenario 4; also exercised by the rolling upgrade).
+  shutdown:
+    delaySeconds: 3
+    drainSeconds: 1
+    terminationGraceSeconds: 35
+  env:
+    RATE_LIMIT_ENABLED: "false"
+  resources:
+    requests: { cpu: 50m, memory: 64Mi }
+    limits: { memory: 256Mi }
+controlPlane:
+  replicas: 2
+  env:
+    AUTH_RATE_LIMIT_MAX: "1000"
+  resources:
+    requests: { cpu: 50m, memory: 160Mi }
+    limits: { memory: 384Mi }
+web:
+  replicas: 2
+  resources:
+    requests: { cpu: 50m, memory: 128Mi }
+    limits: { memory: 384Mi }
+embeddings:
+  replicas: 2
+  image: { repository: raggie-embeddings, tag: slim }
+  hpa: { enabled: true, minReplicas: 2, maxReplicas: 3 }
+  resources:
+    requests: { cpu: 50m, memory: 192Mi }
+    limits: { memory: 512Mi }
+workers:
+  ingestion:
+    replicas: 2
+    resources:
+      requests: { cpu: 50m, memory: 160Mi }
+      limits: { memory: 768Mi }
+  eval:
+    replicas: 1
+    pdb: { enabled: false }
+    resources:
+      requests: { cpu: 25m, memory: 128Mi }
+      limits: { memory: 384Mi }
+  scheduler:
+    replicas: 2
+    resources:
+      requests: { cpu: 25m, memory: 96Mi }
+      limits: { memory: 256Mi }
+
+migrations:
+  resources:
+    requests: { cpu: 50m, memory: 96Mi }
+    limits: { memory: 256Mi }
+
+postgresql:
+  cnpg:
+    storage: { size: 1Gi }
+    resources:
+      requests: { cpu: 100m, memory: 192Mi }
+      limits: { memory: 512Mi }
+    parameters:
+      max_connections: "200"
+      shared_buffers: 64MB
+    backup:
+      enabled: false
+
+valkey:
+  persistence: { size: 256Mi }
+  resources:
+    requests: { cpu: 25m, memory: 32Mi }
+    limits: { memory: 128Mi }
+  # Faster detection for the chaos timing assertions.
+  sentinel:
+    downAfterMilliseconds: 3000
+    failoverTimeout: 15000
+
+qdrant:
+  persistence: { size: 1Gi }
+  snapshotPersistence: { enabled: false }
+  resources:
+    requests: { cpu: 50m, memory: 128Mi }
+    limits: { memory: 512Mi }
+
+# No external object store in kind: single-node SeaweedFS (credentials from
+# raggie-secrets S3_ACCESS_KEY / S3_SECRET_KEY).
+s3:
+  mode: seaweedfs
+  existingSecret: ""
+  seaweedfs:
+    persistence: { size: 2Gi }
+    resources:
+      requests: { cpu: 50m, memory: 128Mi }
+      limits: { memory: 512Mi }
+
+networkPolicy:
+  ingressControllerNamespaceSelector:
+    matchLabels: { kubernetes.io/metadata.name: ingress-nginx }
+  # Egress to mock-embeddings (outside the chart) is opened by
+  # scripts/ha/manifests/mock-embeddings.yaml.

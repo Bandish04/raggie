@@ -1,0 +1,10 @@
+# Ruff config for tests/security (zap, llm). No lockfile here: required-version
+# keeps it on the CI ruff (RUFF_VERSION).
+required-version = "==0.15.15"
+line-length = 100
+target-version = "py313"
+# The scripts import their siblings directly, so each folder is a first-party root.
+src = ["zap", "llm"]
+
+[lint]
+select = ["E", "F", "I", "B", "UP"]

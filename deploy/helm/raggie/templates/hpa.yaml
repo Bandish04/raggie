@@ -1,0 +1,41 @@
+{{- $root := . -}}
+{{- $items := list
+  (dict "component" "edge" "on" (and .Values.edge.enabled .Values.edge.hpa.enabled (not (and .Values.keda.enabled .Values.keda.edge.enabled))) "hpa" .Values.edge.hpa)
+  (dict "component" "embeddings" "on" (and .Values.embeddings.enabled .Values.embeddings.hpa.enabled) "hpa" .Values.embeddings.hpa) -}}
+{{- range $items }}
+{{- if .on }}
+{{- $sel := dict "root" $root "component" .component }}
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ include "raggie.componentName" $sel }}
+  labels:
+    {{- include "raggie.componentLabels" $sel | nindent 4 }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ include "raggie.componentName" $sel }}
+  minReplicas: {{ .hpa.minReplicas }}
+  maxReplicas: {{ .hpa.maxReplicas }}
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: {{ .hpa.targetCPUUtilizationPercentage }}
+    {{- with .hpa.extraMetrics }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  behavior:
+    # Long-lived SSE streams: scale down slowly so drains stay rare.
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+        - type: Pods
+          value: 1
+          periodSeconds: 60
+{{- end }}
+{{- end }}

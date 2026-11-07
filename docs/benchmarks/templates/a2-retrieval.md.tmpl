@@ -1,0 +1,40 @@
+{{template "header" .}}
+
+**{{.Body.Verdict}}**
+
+What is measured: real chat turns through the edge against the mock LLM. The
+edge embeds the query, runs the Qdrant hybrid search and reranks before it
+writes anything, so time-to-`sources` bounds A2 from above.
+
+| Embeddings provider | Reranker (`RERANK_ENABLED`) | Query-embedding cache |
+|---|---|---|
+| `{{.Body.Embeddings}}` | `{{.Body.Rerank}}` | `{{.Body.Cache}}` |
+{{- with .Body.Seed}}
+
+Workspace seeded with {{.Files}} golden-corpus documents ({{.Succeeded}} indexed{{if .Failed}}, {{len .Failed}} failed{{end}}) in {{.Wall}}.
+{{- end}}
+{{range .Body.Passes}}
+## Pass: {{.Name}}
+
+{{.Description}}. {{.OK}}/{{.Requests}} turns completed ({{pct .SuccessRate}}).
+
+**A2 proxy — time to `sources`:** p50 {{ms .A2.P50}} ms · p95 {{ms .A2.P95}} ms · p99 {{ms .A2.P99}} ms (n={{.A2.N}})
+
+| Phase (ms from request) | n | p50 | p95 | p99 | mean | max |
+|---|---|---|---|---|---|---|
+{{- range .Phases}}
+{{template "latency-row" .}}
+{{- end}}
+
+| Outcome | Turns |
+|---|---|
+{{- range .Outcomes}}
+| {{cell .Name}} | {{.Count}} |
+{{- end}}
+{{end}}
+{{- template "environment" .}}
+
+{{template "config" .}}
+{{- template "notes" .}}
+
+Raw per-turn numbers: the `.csv` and `.json` files next to this report.

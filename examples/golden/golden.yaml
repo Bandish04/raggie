@@ -1,0 +1,2288 @@
+# Raggie golden set — exact-answer questions over examples/sample-corpus.
+# Schema, question types and scoring rules: examples/golden/README.md.
+# Verified by `uv run scripts/corpus/validate.py` (every quote is checked against the
+# text the ingestion worker extracts; every answer must appear in its evidence).
+version: 1
+corpus: "../sample-corpus"  # relative to this file
+questions:
+
+  # ── arge ────────────────────────────────────────────────────────
+  - id: "arge-001"
+    department: "arge"
+    language: tr
+    type: "single-fact"
+    difficulty: easy
+    question: "NebulaCRM platformu şu an kaç mikroservisten oluşuyor?"
+    answer: "34"
+    answer_variants: ["34 mikroservis"]
+    expected_documents: ["Teknik_Mimari_NebulaCRM_2026.pdf", "Load_Test_Report_2026_Q2.docx"]
+    evidence:
+      - document: "Teknik_Mimari_NebulaCRM_2026.pdf"
+        quote: "NebulaCRM, Kubernetes 1.30 üzerinde koşan 34 mikroservisten oluşur."
+      - document: "Load_Test_Report_2026_Q2.docx"
+        quote: "The test environment mirrored production topology: 34 services on Kubernetes"
+  - id: "arge-002"
+    department: "arge"
+    language: tr
+    type: "single-fact"
+    difficulty: medium
+    question: "Kurumsal Plus'taki ayrılmış veritabanı seçeneğini Eylül 2026 sonu itibarıyla kaç müşteri kullanıyor?"
+    answer: "9"
+    answer_variants: ["9 müşteri", "dokuz"]
+    expected_documents: ["Teknik_Mimari_NebulaCRM_2026.pdf"]
+    evidence:
+      - document: "Teknik_Mimari_NebulaCRM_2026.pdf"
+        quote: "30 Eylül 2026 itibarıyla 9 müşteri ayrılmış veritabanı seçeneğini kullanmaktadır."
+  - id: "arge-003"
+    department: "arge"
+    language: tr
+    type: "temporal/version"
+    difficulty: medium
+    question: "Platformun 2025 yılındaki tepe trafiği kaç RPS idi?"
+    answer: "1.650 RPS"
+    answer_variants: ["1650 RPS", "1.650"]
+    expected_documents: ["Teknik_Mimari_NebulaCRM_2026.pdf"]
+    evidence:
+      - document: "Teknik_Mimari_NebulaCRM_2026.pdf"
+        quote: "bu değer 2025 yılının tepe değeri olan 1.650 RPS'ye göre belirgin bir artışı gösterir"
+  - id: "arge-004"
+    department: "arge"
+    language: tr
+    type: "single-fact"
+    difficulty: easy
+    question: "Üretime kademeli dağıtımda yeni sürüm ilk aşamada trafiğin yüzde kaçını alıyor?"
+    answer: "%5"
+    answer_variants: ["5%", "yüzde 5"]
+    expected_documents: ["Teknik_Mimari_NebulaCRM_2026.pdf"]
+    evidence:
+      - document: "Teknik_Mimari_NebulaCRM_2026.pdf"
+        quote: "yeni sürüm önce trafiğin %5'ini alır, 30 dakika boyunca hata oranı ve gecikme metrikleri eşik içinde kalırsa %50'ye"
+  - id: "arge-005"
+    department: "arge"
+    language: en
+    type: "single-fact"
+    difficulty: easy
+    question: "In the Q2 2026 load test, what p95 latency did the API reach at 3,000 RPS?"
+    answer: "212 ms"
+    answer_variants: ["212 milliseconds"]
+    expected_documents: ["Load_Test_Report_2026_Q2.docx"]
+    evidence:
+      - document: "Load_Test_Report_2026_Q2.docx"
+        quote: "At 3,000 RPS sustained for 60 minutes the API recorded a p95 latency of 212 ms"
+  - id: "arge-006"
+    department: "arge"
+    language: en
+    type: "table-lookup"
+    difficulty: medium
+    question: "What error rate did the load test record at the 3,600 RPS step?"
+    answer: "0.11%"
+    expected_documents: ["Load_Test_Report_2026_Q2.docx"]
+    evidence:
+      - document: "Load_Test_Report_2026_Q2.docx"
+        quote: "S4 | 3,600 | 287 | 690 | 0.11% | 81%"
+  - id: "arge-007"
+    department: "arge"
+    language: tr
+    type: "temporal/version"
+    difficulty: medium
+    question: "Geçen yılki (2025) yük testinde 2.000 RPS'de p95 gecikme kaç ms ölçülmüştü?"
+    answer: "268 ms"
+    answer_variants: ["268"]
+    expected_documents: ["Load_Test_Report_2026_Q2.docx"]
+    evidence:
+      - document: "Load_Test_Report_2026_Q2.docx"
+        quote: "p95 at 2,000 RPS | 268 ms | 151 ms"
+  - id: "arge-008"
+    department: "arge"
+    language: tr
+    type: "single-fact"
+    difficulty: medium
+    question: "Yük testine göre platformun kırılma noktası kaç RPS ve o noktada hangi bileşen doyuma ulaştı?"
+    answer: "4,150 RPS; PostgreSQL"
+    answer_variants: ["4.150 RPS, birincil PostgreSQL"]
+    expected_documents: ["Load_Test_Report_2026_Q2.docx"]
+    evidence:
+      - document: "Load_Test_Report_2026_Q2.docx"
+        quote: "The platform kept scaling until 4,150 RPS, where the primary PostgreSQL node reached 92% CPU and latency degraded sharply"
+  - id: "arge-009"
+    department: "arge"
+    language: en
+    type: "single-fact"
+    difficulty: easy
+    question: "What is the maximum page size when listing records through API v3?"
+    answer: "200"
+    answer_variants: ["200 records"]
+    expected_documents: ["NebulaCRM_API_v3_Reference.md"]
+    evidence:
+      - document: "NebulaCRM_API_v3_Reference.md"
+        quote: "The default page size is 50 records and the maximum is 200"
+  - id: "arge-010"
+    department: "arge"
+    language: en
+    type: "table-lookup"
+    difficulty: easy
+    question: "How many requests per minute is an Enterprise (Kurumsal) API token allowed?"
+    answer: "1,200"
+    answer_variants: ["1200", "1.200"]
+    expected_documents: ["NebulaCRM_API_v3_Reference.md"]
+    evidence:
+      - document: "NebulaCRM_API_v3_Reference.md"
+        quote: "Enterprise (Kurumsal) | 1,200 | 5"
+  - id: "arge-011"
+    department: "arge"
+    language: tr
+    type: "single-fact"
+    difficulty: easy
+    question: "Webhook teslimatı başarısız olursa kaç kez yeniden deneniyor?"
+    answer: "6"
+    answer_variants: ["6 kez", "altı"]
+    expected_documents: ["NebulaCRM_API_v3_Reference.md"]
+    evidence:
+      - document: "NebulaCRM_API_v3_Reference.md"
+        quote: "Failed deliveries are retried 6 times with exponential backoff over roughly 24 hours"
+  - id: "arge-012"
+    department: "arge"
+    language: tr
+    type: "single-fact"
+    difficulty: easy
+    question: "Eski API v2 hangi tarihte tamamen kapatılacak?"
+    answer: "31 March 2027"
+    answer_variants: ["31 Mart 2027", "2027-03-31"]
+    expected_documents: ["NebulaCRM_API_v3_Reference.md", "Release_Notes_NebulaCRM_v3.4.md", "Surum_Notlari_NebulaCRM_v3.3.md", "Stratejik_Plan_2026_2028.pptx"]
+    evidence:
+      - document: "NebulaCRM_API_v3_Reference.md"
+        quote: "API v2 is deprecated and will be switched off on 31 March 2027 (sunset date)"
+      - document: "Release_Notes_NebulaCRM_v3.4.md"
+        quote: "API v2 will be switched off on 31 March 2027."
+      - document: "Surum_Notlari_NebulaCRM_v3.3.md"
+        quote: "API v2 uç noktaları 31 Mart 2027 tarihinde kapatılacaktır."
+      - document: "Stratejik_Plan_2026_2028.pptx"
+        quote: "API v2'nin kullanımdan kaldırılması 31 Mart 2027'de tamamlanacak"
+  - id: "arge-013"
+    department: "arge"
+    language: tr
+    type: "single-fact"
+    difficulty: medium
+    question: "Webhook imzası hangi HTTP başlığında gönderiliyor?"
+    answer: "X-Nebula-Signature"
+    expected_documents: ["NebulaCRM_API_v3_Reference.md"]
+    evidence:
+      - document: "NebulaCRM_API_v3_Reference.md"
+        quote: "Each delivery is signed with HMAC-SHA256 using the endpoint's signing secret, and the signature is sent in the X-Nebula-Signature header"
+  - id: "arge-014"
+    department: "arge"
+    language: en
+    type: "single-fact"
+    difficulty: easy
+    question: "How many approvals does a pull request that changes billing code need?"
+    answer: "2"
+    answer_variants: ["two", "2 approvals"]
+    expected_documents: ["Engineering_Code_Review_Guidelines.txt"]
+    evidence:
+      - document: "Engineering_Code_Review_Guidelines.txt"
+        quote: "Changes in critical paths require 2 approvals: billing, authentication, tenancy and permission checks"
+  - id: "arge-015"
+    department: "arge"
+    language: tr
+    type: "single-fact"
+    difficulty: easy
+    question: "Bir pull request için önerilen yumuşak boyut sınırı kaç değişen satır?"
+    answer: "400"
+    answer_variants: ["400 satır"]
+    expected_documents: ["Engineering_Code_Review_Guidelines.txt"]
+    evidence:
+      - document: "Engineering_Code_Review_Guidelines.txt"
+        quote: "The soft limit is 400 changed lines, excluding generated files and lock files."
+  - id: "arge-016"
+    department: "arge"
+    language: tr
+    type: "single-fact"
+    difficulty: medium
+    question: "Hotfix dalı neyden oluşturuluyor ve ana dala ne kadar sürede geri birleştirilmeli?"
+    answer: "latest release tag; 1 business day"
+    answer_variants: ["son release etiketinden; 1 iş günü içinde"]
+    expected_documents: ["Engineering_Code_Review_Guidelines.txt"]
+    evidence:
+      - document: "Engineering_Code_Review_Guidelines.txt"
+        quote: "Hotfix branches are created from the latest release tag as hotfix/NCRM-1234-short-desc"
+      - document: "Engineering_Code_Review_Guidelines.txt"
+        quote: "are merged back into main within 1 business day after deployment"
+  - id: "arge-017"
+    department: "arge"
+    language: tr
+    type: "negative/unanswerable"
+    difficulty: medium
+    question: "NebulaCRM API'sinin GraphQL uç noktası için dakikalık sorgu karmaşıklığı limiti nedir?"
+    answer: null
+    expected_documents: []
+    evidence: []
+    absent_terms: ["GraphQL"]
+    notes: "API v3 yalnızca REST'tir; corpus'ta GraphQL uç noktası veya sorgu karmaşıklığı limiti tanımlanmıyor. Doğru davranış: kaynak bulunamadığını söylemek."
+
+  # ── bilgi-teknolojileri ─────────────────────────────────────────
+  - id: "bt-001"
+    department: "bilgi-teknolojileri"
+    language: tr
+    type: "single-fact"
+    difficulty: easy
+    question: "Yeni parola politikasına göre şirket hesaplarındaki parolalar en az kaç karakter olmalı?"
+    answer: "14 karakter"
+    answer_variants: ["14"]
+    expected_documents: ["Parola_ve_Erisim_Politikasi_v2.0_2026.pdf", "ISO_27001_Gozetim_Denetimi_Raporu_2026.pdf"]
+    evidence:
+      - document: "Parola_ve_Erisim_Politikasi_v2.0_2026.pdf"
+        quote: "Kullanıcı parolaları en az 14 karakter uzunluğunda olmalıdır."
+      - document: "ISO_27001_Gozetim_Denetimi_Raporu_2026.pdf"
+        quote: "Parola politikasının v2.0 sürümüyle 14 karakter alt sınırı"
+  - id: "bt-002"
+    department: "bilgi-teknolojileri"
+    language: tr
+    type: "temporal/version"
+    difficulty: medium
+    question: "2025'te geçerli olan parola politikasında minimum parola uzunluğu kaç karakterdi?"
+    answer: "12 karakter"
+    answer_variants: ["12"]
+    expected_documents: ["Parola_Politikasi_v1.3_2025_ARSIV.txt"]
+    evidence:
+      - document: "Parola_Politikasi_v1.3_2025_ARSIV.txt"
+        quote: "Parolalar en az 12 karakter uzunluğunda olmalıdır."
+  - id: "bt-003"
+    department: "bilgi-teknolojileri"
+    language: tr
+    type: "temporal/version"
+    difficulty: medium
+    question: "Parolamı hâlâ 90 günde bir değiştirmem gerekiyor mu, yoksa bu kural kalktı mı?"
+    answer: "Yalnızca şüphe halinde"
+    answer_variants: ["Hayır, periyodik değişim yok; yalnızca ele geçirildiğinden şüphelenildiğinde değiştirilir"]
+    expected_documents: ["Parola_ve_Erisim_Politikasi_v2.0_2026.pdf"]
+    evidence:
+      - document: "Parola_ve_Erisim_Politikasi_v2.0_2026.pdf"
+        quote: "Periyodik değişim 90 günde bir Yalnızca şüphe halinde"
+      - document: "Parola_ve_Erisim_Politikasi_v2.0_2026.pdf"
+        quote: "Parolalar periyodik olarak değiştirilmez."
+  - id: "bt-004"
+    department: "bilgi-teknolojileri"
+    language: en
+    type: "single-fact"
+    difficulty: medium
+    question: "Under the current password policy, after how many failed login attempts is an account locked, and for how long?"
+    answer: "10; 15 dakika"
+    answer_variants: ["10 failed attempts, locked for 15 minutes"]
+    expected_documents: ["Parola_ve_Erisim_Politikasi_v2.0_2026.pdf"]
+    evidence:
+      - document: "Parola_ve_Erisim_Politikasi_v2.0_2026.pdf"
+        quote: "Art arda 10 hatalı giriş denemesinden sonra hesap 15 dakika süreyle kilitlenir."
+  - id: "bt-005"
+    department: "bilgi-teknolojileri"
+    language: en
+    type: "temporal/version"
+    difficulty: hard
+    question: "In 2025, how long was an account locked after too many failed password attempts?"
+    answer: "30 dakika"
+    answer_variants: ["30 minutes", "after 5 attempts, for 30 minutes"]
+    expected_documents: ["Parola_Politikasi_v1.3_2025_ARSIV.txt"]
+    evidence:
+      - document: "Parola_Politikasi_v1.3_2025_ARSIV.txt"
+        quote: "Art arda 5 hatalı denemeden sonra hesap 30 dakika süreyle kilitlenir."
+  - id: "bt-006"
+    department: "bilgi-teknolojileri"
+    language: tr
+    type: "single-fact"
+    difficulty: medium
+    question: "Servis hesaplarının sırları en geç ne sıklıkla döndürülmeli?"
+    answer: "180 günde bir"
+    answer_variants: ["180 gün"]
+    expected_documents: ["Parola_ve_Erisim_Politikasi_v2.0_2026.pdf"]
+    evidence:
+      - document: "Parola_ve_Erisim_Politikasi_v2.0_2026.pdf"
+        quote: "Servis hesabı sırları en geç 180 günde bir döndürülür"
+  - id: "bt-007"
+    department: "bilgi-teknolojileri"
+    language: tr
+    type: "table-lookup"
+    difficulty: easy
+    question: "Envanterde kaç adet NB-16X dizüstü bilgisayar kayıtlı?"
+    answer: "71"
+    expected_documents: ["BT_Varlik_Envanteri_2026.xlsx"]
+    evidence:
+      - document: "BT_Varlik_Envanteri_2026.xlsx"
+        quote: "Dizüstü bilgisayar | NB-16X (16 inç, 64 GB RAM) | 71"
+  - id: "bt-008"
+    department: "bilgi-teknolojileri"
+    language: en
+    type: "table-lookup"
+    difficulty: medium
+    question: "Which laptop model is asset NB-LT-0142, and who is it assigned to?"
+    answer: "NB-16X; Okan Yıldız"
+    expected_documents: ["BT_Varlik_Envanteri_2026.xlsx"]
+    evidence:
+      - document: "BT_Varlik_Envanteri_2026.xlsx"
+        quote: "NB-LT-0142 | NB-16X | Okan Yıldız | Ar-Ge | Ankara"
+  - id: "bt-009"
+    department: "bilgi-teknolojileri"
+    language: tr
+    type: "table-lookup"
+    difficulty: easy
+    question: "Frankfurt'taki FRA-1 bölgesinde toplam kaç sunucu var?"
+    answer: "12"
+    expected_documents: ["BT_Varlik_Envanteri_2026.xlsx"]
+    evidence:
+      - document: "BT_Varlik_Envanteri_2026.xlsx"
+        quote: "Sunucu | FRA-1 (Frankfurt) | 12 | AB bölgesi, 1 Temmuz 2026'dan beri canlı"
+  - id: "bt-010"
+    department: "bilgi-teknolojileri"
+    language: tr
+    type: "table-lookup"
+    difficulty: medium
+    question: "Kurumsal parola kasası lisansının yıllık maliyeti ne kadar ve ne zaman yenileniyor?"
+    answer: "486000; 01.03.2027"
+    answer_variants: ["486.000 TL, 1 Mart 2027"]
+    expected_documents: ["BT_Varlik_Envanteri_2026.xlsx"]
+    evidence:
+      - document: "BT_Varlik_Envanteri_2026.xlsx"
+        quote: "Kurumsal parola kasası | Parola ve sır saklama | Kullanıcı başı abonelik | 270 | 486000 | 01.03.2027"
+  - id: "bt-011"
+    department: "bilgi-teknolojileri"
+    language: tr
+    type: "single-fact"
+    difficulty: easy
+    question: "NebulaCRM için RPO hedefimiz ne, Kurumsal Plus'ın özel kümelerinde RTO kaç saat?"
+    answer: "15 dakika; 2 saat"
+    expected_documents: ["Yedekleme_ve_Felaket_Kurtarma_Plani.docx"]
+    evidence:
+      - document: "Yedekleme_ve_Felaket_Kurtarma_Plani.docx"
+        quote: "Tüm planlar için kurtarma noktası hedefi (RPO) 15 dakika, kurtarma süresi hedefi (RTO) 4 saattir. Kurumsal Plus müşterilerine ayrılmış özel veritabanı kümeleri için RTO 2 saattir."
+  - id: "bt-012"
+    department: "bilgi-teknolojileri"
+    language: en
+    type: "temporal/version"
+    difficulty: medium
+    question: "What recovery time (RTO) was actually achieved in the most recent disaster recovery test?"
+    answer: "2 saat 41 dakika"
+    expected_documents: ["Yedekleme_ve_Felaket_Kurtarma_Plani.docx"]
+    evidence:
+      - document: "Yedekleme_ve_Felaket_Kurtarma_Plani.docx"
+        quote: "Son test 23 Mayıs 2026'da yapılmış ve gerçekleşen RTO 2 saat 41 dakika olmuştur."
+  - id: "bt-013"
+    department: "bilgi-teknolojileri"
+    language: tr
+    type: "temporal/version"
+    difficulty: hard
+    question: "Kasım 2025'teki DR testinde RTO kaç olarak ölçülmüştü?"
+    answer: "3 saat 18 dakika"
+    expected_documents: ["Yedekleme_ve_Felaket_Kurtarma_Plani.docx"]
+    evidence:
+      - document: "Yedekleme_ve_Felaket_Kurtarma_Plani.docx"
+        quote: "15.11.2025 | Birincil PostgreSQL kaybı | 4 saat | 3 saat 18 dakika | 9 dakika | Emre Kaya"
+  - id: "bt-014"
+    department: "bilgi-teknolojileri"
+    language: tr
+    type: "single-fact"
+    difficulty: easy
+    question: "Bir sonraki felaket kurtarma testi hangi tarihte yapılacak?"
+    answer: "21 Kasım 2026"
+    answer_variants: ["21.11.2026"]
+    expected_documents: ["Yedekleme_ve_Felaket_Kurtarma_Plani.docx"]
+    evidence:
+      - document: "Yedekleme_ve_Felaket_Kurtarma_Plani.docx"
+        quote: "Bir sonraki test 21 Kasım 2026 tarihinde planlanmıştır."
+  - id: "bt-015"
+    department: "bilgi-teknolojileri"
+    language: en
+    type: "single-fact"
+    difficulty: easy
+    question: "How long did the April 2026 primary database outage (INC-2026-0417) last, and what share of API requests failed?"
+    answer: "167 minutes; 38%"
+    expected_documents: ["Postmortem_INC-2026-0417_Database_Outage.pdf"]
+    evidence:
+      - document: "Postmortem_INC-2026-0417_Database_Outage.pdf"
+        quote: "On 17 April 2026, from 09:12 to 11:59 TRT (167 minutes), the primary PostgreSQL cluster in IST-1 stopped accepting writes."
+      - document: "Postmortem_INC-2026-0417_Database_Outage.pdf"
+        quote: "During the incident 38% of API requests failed with 5xx errors and 286 customer accounts were affected."
+  - id: "bt-016"
+    department: "bilgi-teknolojileri"
+    language: tr
+    type: "single-fact"
+    difficulty: easy
+    question: "17 Nisan 2026 veritabanı kesintisinde olay komutanlığını kim üstlendi?"
+    answer: "Ece Polat"
+    expected_documents: ["Postmortem_INC-2026-0417_Database_Outage.pdf"]
+    evidence:
+      - document: "Postmortem_INC-2026-0417_Database_Outage.pdf"
+        quote: "Ece Polat takes the incident commander role"
+  - id: "bt-017"
+    department: "bilgi-teknolojileri"
+    language: tr
+    type: "table-lookup"
+    difficulty: medium
+    question: "Nisan kesintisinden sonra WAL arşiv gecikmesi alarmını kurma aksiyonu kime verildi ve son tarihi neydi?"
+    answer: "Murat Şen; 15 May 2026"
+    answer_variants: ["Murat Şen, 15 Mayıs 2026"]
+    expected_documents: ["Postmortem_INC-2026-0417_Database_Outage.pdf"]
+    evidence:
+      - document: "Postmortem_INC-2026-0417_Database_Outage.pdf"
+        quote: "AI-1 Page on WAL archive lag > 10 min Murat Şen 15 May 2026 Done"
+  - id: "bt-018"
+    department: "bilgi-teknolojileri"
+    language: tr
+    type: "multi-hop"
+    difficulty: hard
+    question: "Nisan 2026'daki veritabanı kesintisinde çöken birincil veri merkezinin felaket kurtarma sahası hangisi ve bu sahaya geçişte hedeflenen RTO ne?"
+    answer: "ANK-DR1; 4 saat"
+    answer_variants: ["Ankara (ANK-DR1), 4 saat"]
+    expected_documents: ["Postmortem_INC-2026-0417_Database_Outage.pdf", "Yedekleme_ve_Felaket_Kurtarma_Plani.docx"]
+    evidence:
+      - document: "Postmortem_INC-2026-0417_Database_Outage.pdf"
+        quote: "the primary PostgreSQL cluster in IST-1 stopped accepting writes"
+      - document: "Yedekleme_ve_Felaket_Kurtarma_Plani.docx"
+        quote: "Testte IST-1'in tamamen kaybedildiği varsayılır ve üretim trafiği ANK-DR1'e taşınır."
+      - document: "Yedekleme_ve_Felaket_Kurtarma_Plani.docx"
+        quote: "kurtarma süresi hedefi (RTO) 4 saattir"
+  - id: "bt-019"
+    department: "bilgi-teknolojileri"
+    language: tr
+    type: "negative/unanswerable"
+    difficulty: medium
+    question: "Şirkette kaç adet teyp (bant) yedekleme kütüphanesi kullanılıyor?"
+    answer: null
+    expected_documents: []
+    evidence: []
+    absent_terms: ["teyp", "bant kütüphanesi", "tape library"]
+    notes: "Yedekleme planı ve BT envanteri yalnızca nesne depolama, WAL arşivleme ve anlık görüntüleri anlatır; bant/teyp altyapısından hiç söz edilmez."
+
+  # ── ceo-ofisi ───────────────────────────────────────────────────
+  - id: "ceo-001"
+    department: "ceo-ofisi"
+    language: en
+    type: "table-lookup"
+    difficulty: easy
+    question: "What was Nebula's ARR at the end of Q3 2026?"
+    answer: "$22.4M"
+    answer_variants: ["22.4 million USD", "$22.4 million"]
+    expected_documents: ["Investor_Update_Q3_2026.pdf"]
+    evidence:
+      - document: "Investor_Update_Q3_2026.pdf"
+        quote: "ARR (end of period) $20.3M $22.4M +10% QoQ"
+  - id: "ceo-002"
+    department: "ceo-ofisi"
+    language: en
+    type: "temporal/version"
+    difficulty: medium
+    question: "How did net revenue retention change from Q2 to Q3 2026?"
+    answer: "115%; 118%"
+    answer_variants: ["from 115% to 118%", "+3 pts"]
+    expected_documents: ["Investor_Update_Q3_2026.pdf"]
+    evidence:
+      - document: "Investor_Update_Q3_2026.pdf"
+        quote: "Net revenue retention 115% 118% +3 pts"
+  - id: "ceo-003"
+    department: "ceo-ofisi"
+    language: tr
+    type: "single-fact"
+    difficulty: medium
+    question: "Nebula Assist genel kullanıma açıldıktan sonraki ilk iki haftada kaç kiracı özelliği aktif etti?"
+    answer: "173"
+    answer_variants: ["173 kiracı", "173 tenants"]
+    expected_documents: ["Investor_Update_Q3_2026.pdf"]
+    evidence:
+      - document: "Investor_Update_Q3_2026.pdf"
+        quote: "In the first two weeks after GA, 173 tenants switched it on"
+  - id: "ceo-004"
+    department: "ceo-ofisi"
+    language: tr
+    type: "single-fact"
+    difficulty: medium
+    question: "Yatırımcı bülteninde TL tutarlar dolara hangi kurla çevrildi?"
+    answer: "41.3 TRY/USD"
+    answer_variants: ["41,3"]
+    expected_documents: ["Investor_Update_Q3_2026.pdf"]
+    evidence:
+      - document: "Investor_Update_Q3_2026.pdf"
+        quote: "Turkish lira amounts are translated at the Q3 average rate of 41.3 TRY/USD"
+  - id: "ceo-005"
+    department: "ceo-ofisi"
+    language: en
+    type: "single-fact"
+    difficulty: medium
+    question: "What full-year 2026 revenue does management now forecast, and how does it compare to budget?"
+    answer: "TRY 738.5M; TRY 742.0M"
+    answer_variants: ["738,5 milyon TL"]
+    expected_documents: ["Investor_Update_Q3_2026.pdf", "Finansal_Sonuclar_2026_Q3.pdf", "Yonetim_Kurulu_Toplanti_Tutanagi_2026-05.docx"]
+    evidence:
+      - document: "Investor_Update_Q3_2026.pdf"
+        quote: "Full-year 2026 revenue forecast: TRY 738.5M against a budget of TRY 742.0M."
+      - document: "Finansal_Sonuclar_2026_Q3.pdf"
+        quote: "Finans Müdürlüğü'nün güncel yıl sonu tahmini 738,5 milyon TL gelir"
+      - document: "Yonetim_Kurulu_Toplanti_Tutanagi_2026-05.docx"
+        quote: "Yıl sonu gelir tahmini 738,5 milyon TL olarak paylaşıldı."
+  - id: "ceo-006"
+    department: "ceo-ofisi"
+    language: tr
+    type: "single-fact"
+    difficulty: easy
+    question: "Yönetim Kurulu 2026 hesap dönemi için hangi bağımsız denetim firmasını seçti ve önerilen ücret neydi?"
+    answer: "Atlas Kuzey Bağımsız Denetim A.Ş.; 1,85 milyon TL"
+    expected_documents: ["Yonetim_Kurulu_Toplanti_Tutanagi_2026-05.docx"]
+    evidence:
+      - document: "Yonetim_Kurulu_Toplanti_Tutanagi_2026-05.docx"
+        quote: "Denetim Komitesi, üç teklif arasından Atlas Kuzey Bağımsız Denetim A.Ş.'yi önerdi."
+      - document: "Yonetim_Kurulu_Toplanti_Tutanagi_2026-05.docx"
+        quote: "Önerilen denetim ücreti 2026 hesap dönemi için 1,85 milyon TL'dir (KDV hariç)."
+  - id: "ceo-007"
+    department: "ceo-ofisi"
+    language: tr
+    type: "table-lookup"
+    difficulty: medium
+    question: "Pay opsiyon havuzunun büyütülmesi kararında çekimser kalan yönetim kurulu üyesi kimdi?"
+    answer: "Kaan Ertürk"
+    expected_documents: ["Yonetim_Kurulu_Toplanti_Tutanagi_2026-05.docx"]
+    evidence:
+      - document: "Yonetim_Kurulu_Toplanti_Tutanagi_2026-05.docx"
+        quote: "2026/05-4 | Pay opsiyon havuzu | Havuz %8'den %10'a çıkarıldı | Oyçokluğu (Kaan Ertürk çekimser)"
+  - id: "ceo-008"
+    department: "ceo-ofisi"
+    language: tr
+    type: "temporal/version"
+    difficulty: hard
+    question: "Dubai için Haziran 2026 toplantısında ne kadar bütçe ayrılmıştı, Eylül 2026 toplantısında ne kadar onaylandı?"
+    answer: "750.000 TL; 3,5 milyon TL"
+    expected_documents: ["Yonetim_Kurulu_Toplanti_Tutanagi_2026-05.docx"]
+    evidence:
+      - document: "Yonetim_Kurulu_Toplanti_Tutanagi_2026-05.docx"
+        quote: "2026/04-5 sayılı kararla Dubai için ayrılan 750.000 TL'lik ön fizibilite çalışması tamamlanmış"
+      - document: "Yonetim_Kurulu_Toplanti_Tutanagi_2026-05.docx"
+        quote: "2026/05-3 | Dubai pazar araştırması | 3,5 milyon TL bütçe onaylandı"
+  - id: "ceo-009"
+    department: "ceo-ofisi"
+    language: en
+    type: "single-fact"
+    difficulty: easy
+    question: "When is the next ordinary board meeting after September 2026?"
+    answer: "10 Aralık 2026"
+    answer_variants: ["10 December 2026"]
+    expected_documents: ["Yonetim_Kurulu_Toplanti_Tutanagi_2026-05.docx", "Investor_Update_Q3_2026.pdf"]
+    evidence:
+      - document: "Yonetim_Kurulu_Toplanti_Tutanagi_2026-05.docx"
+        quote: "Bir sonraki olağan toplantının 10 Aralık 2026 Perşembe günü saat 14:00'te Genel Merkez'de yapılmasına karar verildi."
+      - document: "Investor_Update_Q3_2026.pdf"
+        quote: "2027 budget to be presented at the board meeting on 10 December 2026"
+  - id: "ceo-010"
+    department: "ceo-ofisi"
+    language: tr
+    type: "table-lookup"
+    difficulty: easy
+    question: "Stratejik plana göre 2028 sonunda kaç çalışana ulaşılması hedefleniyor?"
+    answer: "400"
+    answer_variants: ["400 kişi"]
+    expected_documents: ["Stratejik_Plan_2026_2028.pptx"]
+    evidence:
+      - document: "Stratejik_Plan_2026_2028.pptx"
+        quote: "| Çalışan sayısı | 214 | 260 | 400 |"
+  - id: "ceo-011"
+    department: "ceo-ofisi"
+    language: en
+    type: "table-lookup"
+    difficulty: easy
+    question: "What share of revenue should come from international markets by 2028 according to the strategic plan?"
+    answer: "%25"
+    answer_variants: ["25%"]
+    expected_documents: ["Stratejik_Plan_2026_2028.pptx"]
+    evidence:
+      - document: "Stratejik_Plan_2026_2028.pptx"
+        quote: "| Uluslararası gelir payı | %2 | %6 | %25 |"
+  - id: "ceo-012"
+    department: "ceo-ofisi"
+    language: tr
+    type: "single-fact"
+    difficulty: medium
+    question: "Stratejik planda şirket satın almaları için işlem başına üst limit ne olarak belirlendi?"
+    answer: "5 milyon USD"
+    answer_variants: ["$5M"]
+    expected_documents: ["Stratejik_Plan_2026_2028.pptx"]
+    evidence:
+      - document: "Stratejik_Plan_2026_2028.pptx"
+        quote: "Küçük ölçekli şirket satın almaları için işlem başına en fazla 5 milyon USD"
+  - id: "ceo-013"
+    department: "ceo-ofisi"
+    language: tr
+    type: "ocr"
+    difficulty: easy
+    question: "Maslak'taki 10. kat tadilatı hangi tarihler arasında yapılacak?"
+    answer: "14-18 Aralık 2026"
+    answer_variants: ["14–18 Aralık 2026", "14-18 December 2026"]
+    expected_documents: ["Genelge_Maslak_10_Kat_Tadilati.png"]
+    evidence:
+      - document: "Genelge_Maslak_10_Kat_Tadilati.png"
+        quote: "10. katında 14-18 Aralık 2026 tarihleri arasında tadilat yapılacaktır."
+  - id: "ceo-014"
+    department: "ceo-ofisi"
+    language: tr
+    type: "ocr"
+    difficulty: easy
+    question: "Yeni personel kartlarını en geç hangi tarihe kadar resepsiyondan almamız gerekiyor?"
+    answer: "27 Kasım 2026"
+    answer_variants: ["27.11.2026"]
+    expected_documents: ["Genelge_Maslak_10_Kat_Tadilati.png"]
+    evidence:
+      - document: "Genelge_Maslak_10_Kat_Tadilati.png"
+        quote: "Yeni personel kartlarınızı en geç 27 Kasım 2026 tarihine kadar resepsiyondan teslim almanız gerekmektedir."
+  - id: "ceo-015"
+    department: "ceo-ofisi"
+    language: en
+    type: "ocr"
+    difficulty: medium
+    question: "From what date will the old access cards stop working at the Maslak headquarters?"
+    answer: "1 Aralık 2026"
+    answer_variants: ["1 December 2026", "01.12.2026"]
+    expected_documents: ["Genelge_Maslak_10_Kat_Tadilati.png"]
+    evidence:
+      - document: "Genelge_Maslak_10_Kat_Tadilati.png"
+        quote: "Eski kartlar 1 Aralık 2026 itibarıyla çalışmayacaktır."
+  - id: "ceo-016"
+    department: "ceo-ofisi"
+    language: tr
+    type: "ocr"
+    difficulty: easy
+    question: "Tadilat genelgesiyle ilgili sorular için kime ulaşmalıyım, dahili numarası kaç?"
+    answer: "Kerem Acar; 1042"
+    expected_documents: ["Genelge_Maslak_10_Kat_Tadilati.png"]
+    evidence:
+      - document: "Genelge_Maslak_10_Kat_Tadilati.png"
+        quote: "Sorularınız için: Kerem Acar, İcra Asistanı, dahili 1042."
+  - id: "ceo-017"
+    department: "ceo-ofisi"
+    language: en
+    type: "ocr"
+    difficulty: medium
+    question: "What is the reference number of the CEO circular about the 10th-floor renovation?"
+    answer: "CEO-2026-031"
+    expected_documents: ["Genelge_Maslak_10_Kat_Tadilati.png"]
+    evidence:
+      - document: "Genelge_Maslak_10_Kat_Tadilati.png"
+        quote: "Sayı: CEO-2026-031"
+
+  # ── finans ──────────────────────────────────────────────────────
+  - id: "fin-001"
+    department: "finans"
+    language: tr
+    type: "table-lookup"
+    difficulty: easy
+    question: "2026 bütçesinde Ar-Ge departmanına ne kadar faaliyet gideri ayrıldı?"
+    answer: "168.4"
+    answer_variants: ["168,4 milyon TL", "168.4 milyon TL"]
+    expected_documents: ["Butce_ve_Gider_Plani_2026.xlsx"]
+    evidence:
+      - document: "Butce_ve_Gider_Plani_2026.xlsx"
+        quote: "Ar-Ge | Ayşe Demir | 121.6 | 168.4 | 38.5 | 92"
+  - id: "fin-002"
+    department: "finans"
+    language: tr
+    type: "table-lookup"
+    difficulty: medium
+    question: "Müşteri Deneyimi departmanının 2026 sonu için hedeflenen kadrosu kaç kişi?"
+    answer: "46"
+    answer_variants: ["46 kişi"]
+    expected_documents: ["Butce_ve_Gider_Plani_2026.xlsx"]
+    evidence:
+      - document: "Butce_ve_Gider_Plani_2026.xlsx"
+        quote: "Müşteri Deneyimi | Can Öztürk | 24.8 | 38.9 | 56.9 | 46"
+  - id: "fin-003"
+    department: "finans"
+    language: en
+    type: "table-lookup"
+    difficulty: easy
+    question: "How much is the daily meal card allowance per employee in 2026?"
+    answer: "330"
+    answer_variants: ["330 TL", "TRY 330"]
+    expected_documents: ["Butce_ve_Gider_Plani_2026.xlsx"]
+    evidence:
+      - document: "Butce_ve_Gider_Plani_2026.xlsx"
+        quote: "Yemek kartı | Günlük (iş günü) | Türkiye ofislerindeki tüm çalışanlar | 250 | 330"
+  - id: "fin-004"
+    department: "finans"
+    language: tr
+    type: "table-lookup"
+    difficulty: medium
+    question: "2026 bütçesinde şirketin FAVÖK hedefi kaç milyon TL?"
+    answer: "106.2"
+    answer_variants: ["106,2 milyon TL"]
+    expected_documents: ["Butce_ve_Gider_Plani_2026.xlsx"]
+    evidence:
+      - document: "Butce_ve_Gider_Plani_2026.xlsx"
+        quote: "FAVÖK | milyon TL | 45.7 | 106.2 | 132.4"
+  - id: "fin-005"
+    department: "finans"
+    language: tr
+    type: "temporal/version"
+    difficulty: medium
+    question: "Kişi başı yıllık eğitim bütçesi 2025 yılında ne kadardı?"
+    answer: "12000"
+    answer_variants: ["12.000 TL", "TRY 12,000"]
+    expected_documents: ["Butce_ve_Gider_Plani_2026.xlsx"]
+    evidence:
+      - document: "Butce_ve_Gider_Plani_2026.xlsx"
+        quote: "Eğitim bütçesi | Yıllık, kişi başı | Tüm çalışanlar | 12000 | 18000"
+  - id: "fin-006"
+    department: "finans"
+    language: tr
+    type: "temporal/version"
+    difficulty: medium
+    question: "Yurt içi harcırah 2025'te günlük kaç TL'ydi?"
+    answer: "950 TL"
+    answer_variants: ["950 TL/gün", "TRY 950"]
+    expected_documents: ["Seyahat_ve_Harcama_Politikasi_2026.pdf"]
+    evidence:
+      - document: "Seyahat_ve_Harcama_Politikasi_2026.pdf"
+        quote: "Yurt içi harcırah 950 TL/gün 1.400 TL/gün"
+  - id: "fin-007"
+    department: "finans"
+    language: tr
+    type: "single-fact"
+    difficulty: easy
+    question: "İstanbul'a iş seyahatinde otelde gecelik en fazla ne kadar harcayabilirim?"
+    answer: "4.500 TL"
+    answer_variants: ["4500 TL", "TRY 4,500"]
+    expected_documents: ["Seyahat_ve_Harcama_Politikasi_2026.pdf"]
+    evidence:
+      - document: "Seyahat_ve_Harcama_Politikasi_2026.pdf"
+        quote: "İstanbul 4.500 TL"
+  - id: "fin-008"
+    department: "finans"
+    language: en
+    type: "single-fact"
+    difficulty: easy
+    question: "Within how many days after a business trip do I have to submit my expenses?"
+    answer: "30 gün"
+    answer_variants: ["30 days"]
+    expected_documents: ["Seyahat_ve_Harcama_Politikasi_2026.pdf"]
+    evidence:
+      - document: "Seyahat_ve_Harcama_Politikasi_2026.pdf"
+        quote: "Masraflar, seyahatin bitiminden itibaren en geç 30 gün içinde belgeleriyle birlikte masraf yönetim sistemine girilir."
+  - id: "fin-009"
+    department: "finans"
+    language: tr
+    type: "single-fact"
+    difficulty: medium
+    question: "Hangi tutardan itibaren bir alımın Satın Alma Komitesi'nde değerlendirilmesi gerekiyor?"
+    answer: "500.000 TL"
+    answer_variants: ["500000 TL", "TRY 500,000"]
+    expected_documents: ["Satin_Alma_ve_Onay_Yetkileri_Proseduru.docx"]
+    evidence:
+      - document: "Satin_Alma_ve_Onay_Yetkileri_Proseduru.docx"
+        quote: "500.000 TL ve üzerindeki alımlar, onay makamına sunulmadan önce Satın Alma Komitesi'nde değerlendirilir."
+  - id: "fin-010"
+    department: "finans"
+    language: en
+    type: "single-fact"
+    difficulty: easy
+    question: "What is the standard payment term we give suppliers?"
+    answer: "45 gün"
+    answer_variants: ["45 days"]
+    expected_documents: ["Satin_Alma_ve_Onay_Yetkileri_Proseduru.docx"]
+    evidence:
+      - document: "Satin_Alma_ve_Onay_Yetkileri_Proseduru.docx"
+        quote: "Standart tedarikçi ödeme vadesi fatura tarihinden itibaren 45 gündür."
+  - id: "fin-011"
+    department: "finans"
+    language: tr
+    type: "temporal/version"
+    difficulty: hard
+    question: "Satın alma prosedürünün bir önceki sürümünde CEO en fazla hangi tutara kadar onay verebiliyordu?"
+    answer: "750.000 TL"
+    answer_variants: ["750000 TL", "TRY 750,000"]
+    expected_documents: ["Satin_Alma_ve_Onay_Yetkileri_Proseduru.docx"]
+    evidence:
+      - document: "Satin_Alma_ve_Onay_Yetkileri_Proseduru.docx"
+        quote: "Sürüm 2.1'de departman yöneticisi onay sınırı 20.000 TL, Finans Müdürü sınırı 200.000 TL ve CEO sınırı 750.000 TL idi"
+  - id: "fin-012"
+    department: "finans"
+    language: tr
+    type: "single-fact"
+    difficulty: easy
+    question: "2026'nın üçüncü çeyreğinde şirketin geliri ne kadar oldu?"
+    answer: "198,4 milyon TL"
+    answer_variants: ["198.4 milyon TL", "TRY 198.4 million"]
+    expected_documents: ["Finansal_Sonuclar_2026_Q3.pdf", "Investor_Update_Q3_2026.pdf", "Yonetim_Kurulu_Toplanti_Tutanagi_2026-05.docx"]
+    evidence:
+      - document: "Finansal_Sonuclar_2026_Q3.pdf"
+        quote: "2026 yılının üçüncü çeyreğini 198,4 milyon TL gelirle kapatmıştır"
+      - document: "Investor_Update_Q3_2026.pdf"
+        quote: "In lira terms, Q3 revenue was TRY 198.4M"
+      - document: "Yonetim_Kurulu_Toplanti_Tutanagi_2026-05.docx"
+        quote: "2026 üçüncü çeyrek gelirinin 198,4 milyon TL"
+  - id: "fin-013"
+    department: "finans"
+    language: en
+    type: "temporal/version"
+    difficulty: medium
+    question: "What was our DSO at the end of Q2 2026, and what did it drop to in Q3?"
+    answer: "52 gün; 47 gün"
+    answer_variants: ["52 days; 47 days"]
+    expected_documents: ["Finansal_Sonuclar_2026_Q3.pdf", "Yonetim_Kurulu_Toplanti_Tutanagi_2026-05.docx"]
+    evidence:
+      - document: "Finansal_Sonuclar_2026_Q3.pdf"
+        quote: "Alacak tahsil süresi (DSO) ikinci çeyrekteki 52 günden 47 güne gerilemiştir."
+      - document: "Yonetim_Kurulu_Toplanti_Tutanagi_2026-05.docx"
+        quote: "ortalama tahsilat süresinin 52 günden 47 güne inmesi"
+  - id: "fin-014"
+    department: "finans"
+    language: tr
+    type: "table-lookup"
+    difficulty: hard
+    question: "İlk dokuz ayda gerçekleşen FAVÖK ile dokuz aylık FAVÖK bütçesi kaç milyon TL?"
+    answer: "64,3; 70,1"
+    answer_variants: ["64,3 milyon TL; 70,1 milyon TL"]
+    expected_documents: ["Finansal_Sonuclar_2026_Q3.pdf"]
+    evidence:
+      - document: "Finansal_Sonuclar_2026_Q3.pdf"
+        quote: "FAVÖK 21,3 27,8 64,3 70,1"
+  - id: "fin-015"
+    department: "finans"
+    language: tr
+    type: "single-fact"
+    difficulty: medium
+    question: "Finans'ın güncel 2026 yıl sonu gelir tahmini nedir?"
+    answer: "738,5 milyon TL"
+    answer_variants: ["738.5 milyon TL"]
+    expected_documents: ["Finansal_Sonuclar_2026_Q3.pdf", "Investor_Update_Q3_2026.pdf", "Yonetim_Kurulu_Toplanti_Tutanagi_2026-05.docx"]
+    evidence:
+      - document: "Finansal_Sonuclar_2026_Q3.pdf"
+        quote: "Finans Müdürlüğü'nün güncel yıl sonu tahmini 738,5 milyon TL gelir ve %13,6 FAVÖK marjıdır."
+      - document: "Investor_Update_Q3_2026.pdf"
+        quote: "Full-year 2026 revenue forecast: TRY 738.5M"
+      - document: "Yonetim_Kurulu_Toplanti_Tutanagi_2026-05.docx"
+        quote: "Yıl sonu gelir tahmini 738,5 milyon TL olarak paylaşıldı."
+  - id: "fin-016"
+    department: "finans"
+    language: en
+    type: "multi-hop"
+    difficulty: hard
+    question: "Which average TRY/USD rate did the 2026 budget assume, and what was the actual average rate in Q3 2026?"
+    answer: "42.5; 41,3"
+    answer_variants: ["42.5 and 41.3 TRY/USD"]
+    expected_documents: ["Butce_ve_Gider_Plani_2026.xlsx", "Finansal_Sonuclar_2026_Q3.pdf"]
+    evidence:
+      - document: "Butce_ve_Gider_Plani_2026.xlsx"
+        quote: "Ortalama kur varsayımı | TL/USD | 38.6 | 42.5"
+      - document: "Finansal_Sonuclar_2026_Q3.pdf"
+        quote: "Çeyrek ortalama kuru 41,3 TL/USD olarak gerçekleşmiştir"
+  - id: "fin-017"
+    department: "finans"
+    language: tr
+    type: "negative/unanswerable"
+    difficulty: medium
+    question: "2026'da şirket araç filosu kiralaması için ne kadar bütçe ayrıldı?"
+    answer: null
+    expected_documents: []
+    evidence: []
+    absent_terms: ["filo kiralama", "araç filosu", "şirket aracı"]
+    notes: "Bütçe çalışma kitabında araç filosu veya şirket aracı kalemi yok; yalnızca seyahat varsayımlarında özel araç kilometre ücreti var. Doğru davranış: kaynakta bulunmadığını söylemek."
+
+  # ── hukuk-uyum ──────────────────────────────────────────────────
+  - id: "huk-001"
+    department: "hukuk-uyum"
+    language: tr
+    type: "table-lookup"
+    difficulty: easy
+    question: "İşe başvuran adayların CV'lerini ne kadar süre saklayabiliyoruz?"
+    answer: "1 yıl"
+    expected_documents: ["KVKK_Kisisel_Veri_Saklama_ve_Imha_Politikasi.pdf"]
+    evidence:
+      - document: "KVKK_Kisisel_Veri_Saklama_ve_Imha_Politikasi.pdf"
+        quote: "İş başvurusu CV'leri 1 yıl Açık rıza Silme"
+  - id: "huk-002"
+    department: "hukuk-uyum"
+    language: tr
+    type: "table-lookup"
+    difficulty: easy
+    question: "Erişim logları kaç yıl tutuluyor?"
+    answer: "2 yıl"
+    expected_documents: ["KVKK_Kisisel_Veri_Saklama_ve_Imha_Politikasi.pdf"]
+    evidence:
+      - document: "KVKK_Kisisel_Veri_Saklama_ve_Imha_Politikasi.pdf"
+        quote: "Erişim kayıtları (loglar) 2 yıl 5651 sayılı Kanun Silme"
+  - id: "huk-003"
+    department: "hukuk-uyum"
+    language: tr
+    type: "single-fact"
+    difficulty: easy
+    question: "Saklama süresi dolan kişisel veriler için periyodik imha hangi aylarda yapılıyor?"
+    answer: "haziran; aralık"
+    answer_variants: ["Haziran ve Aralık"]
+    expected_documents: ["KVKK_Kisisel_Veri_Saklama_ve_Imha_Politikasi.pdf"]
+    evidence:
+      - document: "KVKK_Kisisel_Veri_Saklama_ve_Imha_Politikasi.pdf"
+        quote: "Periyodik imha her yıl haziran ve aralık aylarında gerçekleştirilir."
+  - id: "huk-004"
+    department: "hukuk-uyum"
+    language: tr
+    type: "single-fact"
+    difficulty: easy
+    question: "Bir veri ihlalini öğrendiğimizde Kişisel Verileri Koruma Kurulu'na en geç ne kadar sürede bildirmemiz gerekiyor?"
+    answer: "72 saat"
+    expected_documents: ["KVKK_Kisisel_Veri_Saklama_ve_Imha_Politikasi.pdf"]
+    evidence:
+      - document: "KVKK_Kisisel_Veri_Saklama_ve_Imha_Politikasi.pdf"
+        quote: "durum öğrenme anından itibaren en geç 72 saat içinde Kişisel Verileri Koruma Kurulu'na bildirilir"
+  - id: "huk-005"
+    department: "hukuk-uyum"
+    language: tr
+    type: "single-fact"
+    difficulty: medium
+    question: "Şirketin KVKK irtibat kişisi kim ve başvurular hangi adrese gönderiliyor?"
+    answer: "Onur Aslan; kvkk@nebulacrm.example"
+    expected_documents: ["KVKK_Kisisel_Veri_Saklama_ve_Imha_Politikasi.pdf"]
+    evidence:
+      - document: "KVKK_Kisisel_Veri_Saklama_ve_Imha_Politikasi.pdf"
+        quote: "Kurum adına Veri Sorumlusu İrtibat Kişisi Uyum Uzmanı Onur Aslan'dır."
+      - document: "KVKK_Kisisel_Veri_Saklama_ve_Imha_Politikasi.pdf"
+        quote: "Kişisel verilerle ilgili tüm başvurular kvkk@nebulacrm.example adresine veya genel merkez adresine yazılı olarak iletilir"
+  - id: "huk-006"
+    department: "hukuk-uyum"
+    language: en
+    type: "single-fact"
+    difficulty: easy
+    question: "Under our customer DPA, how quickly must we notify a customer about a personal data breach?"
+    answer: "48 hours"
+    answer_variants: ["48 saat", "without undue delay and within 48 hours"]
+    expected_documents: ["Data_Processing_Agreement_Template_v2026.docx"]
+    evidence:
+      - document: "Data_Processing_Agreement_Template_v2026.docx"
+        quote: "Nebula will notify the Customer without undue delay and in any event within 48 hours after becoming aware of a personal data breach affecting Customer Data."
+  - id: "huk-007"
+    department: "hukuk-uyum"
+    language: tr
+    type: "multi-hop"
+    difficulty: hard
+    question: "Bir veri ihlalinde müşteriye bildirim süremiz ile Kurul'a bildirim süremiz arasında kaç saat fark var; her iki süre nedir?"
+    answer: "48 hours; 72 saat"
+    answer_variants: ["Müşteriye 48 saat, Kurul'a 72 saat (24 saat fark)"]
+    expected_documents: ["Data_Processing_Agreement_Template_v2026.docx", "KVKK_Kisisel_Veri_Saklama_ve_Imha_Politikasi.pdf"]
+    evidence:
+      - document: "Data_Processing_Agreement_Template_v2026.docx"
+        quote: "in any event within 48 hours after becoming aware of a personal data breach"
+      - document: "KVKK_Kisisel_Veri_Saklama_ve_Imha_Politikasi.pdf"
+        quote: "en geç 72 saat içinde Kişisel Verileri Koruma Kurulu'na bildirilir"
+  - id: "huk-008"
+    department: "hukuk-uyum"
+    language: en
+    type: "single-fact"
+    difficulty: medium
+    question: "How much advance notice do customers get before we add a new sub-processor, and how long do they have to object?"
+    answer: "30 days; 14 days"
+    expected_documents: ["Data_Processing_Agreement_Template_v2026.docx"]
+    evidence:
+      - document: "Data_Processing_Agreement_Template_v2026.docx"
+        quote: "Nebula will notify the Customer at least 30 days before adding or replacing a Sub-processor. The Customer may object on reasonable data protection grounds within 14 days of the notice"
+  - id: "huk-009"
+    department: "hukuk-uyum"
+    language: tr
+    type: "single-fact"
+    difficulty: medium
+    question: "Bir müşteri DPA kapsamında bizi ne sıklıkla denetleyebilir?"
+    answer: "once in any 12-month period"
+    answer_variants: ["12 ayda bir kez", "yılda bir"]
+    expected_documents: ["Data_Processing_Agreement_Template_v2026.docx"]
+    evidence:
+      - document: "Data_Processing_Agreement_Template_v2026.docx"
+        quote: "The Customer may audit Nebula's compliance with this DPA once in any 12-month period, on at least 30 days' written notice"
+  - id: "huk-010"
+    department: "hukuk-uyum"
+    language: en
+    type: "table-lookup"
+    difficulty: easy
+    question: "Which sub-processor runs the LLM inference behind Nebula Assist?"
+    answer: "Terra LLM Hizmetleri A.Ş."
+    expected_documents: ["Subprocessor_Register_2026.xlsx"]
+    evidence:
+      - document: "Subprocessor_Register_2026.xlsx"
+        quote: "Terra LLM Hizmetleri A.Ş. | LLM inference for Nebula Assist | Türkiye (İstanbul)"
+  - id: "huk-011"
+    department: "hukuk-uyum"
+    language: en
+    type: "multi-hop"
+    difficulty: hard
+    question: "A German customer chose EU hosting. In which data centre region is their data stored, and which sub-processor operates it?"
+    answer: "FRA-1; Rheinwerk Hosting GmbH"
+    expected_documents: ["Data_Processing_Agreement_Template_v2026.docx", "Subprocessor_Register_2026.xlsx"]
+    evidence:
+      - document: "Data_Processing_Agreement_Template_v2026.docx"
+        quote: "Customers who select EU hosting are served from the FRA-1 region in Frankfurt, Germany, available since 1 July 2026"
+      - document: "Subprocessor_Register_2026.xlsx"
+        quote: "Rheinwerk Hosting GmbH | Hosting for EU region FRA-1 | Germany (Frankfurt)"
+  - id: "huk-012"
+    department: "hukuk-uyum"
+    language: en
+    type: "table-lookup"
+    difficulty: hard
+    question: "Which SMS provider was replaced in the sub-processor register, and on what date was it removed?"
+    answer: "Bora İletişim A.Ş.; 31.03.2026"
+    expected_documents: ["Subprocessor_Register_2026.xlsx"]
+    evidence:
+      - document: "Subprocessor_Register_2026.xlsx"
+        quote: "31.03.2026 | Removed | Bora İletişim A.Ş. (SMS) | 27.02.2026 | 0"
+  - id: "huk-013"
+    department: "hukuk-uyum"
+    language: tr
+    type: "single-fact"
+    difficulty: easy
+    question: "Bir tedarikçiden en fazla kaç liralık hediye kabul edebilirim?"
+    answer: "2.000 TL"
+    answer_variants: ["2000 TL"]
+    expected_documents: ["Etik_Kurallar_ve_Ihbar_Proseduru.md"]
+    evidence:
+      - document: "Etik_Kurallar_ve_Ihbar_Proseduru.md"
+        quote: "Çalışanlar, iş ilişkisi bulunan kişi ve kurumlardan değeri 2.000 TL'yi aşan hediye kabul edemez ve bu değeri aşan hediye veremez."
+  - id: "huk-014"
+    department: "hukuk-uyum"
+    language: tr
+    type: "temporal/version"
+    difficulty: medium
+    question: "2025 yılında hediye kabul limiti ne kadardı?"
+    answer: "1.500 TL"
+    answer_variants: ["1500 TL"]
+    expected_documents: ["Etik_Kurallar_ve_Ihbar_Proseduru.md"]
+    evidence:
+      - document: "Etik_Kurallar_ve_Ihbar_Proseduru.md"
+        quote: "Bu limit 2025 yılında 1.500 TL idi"
+  - id: "huk-015"
+    department: "hukuk-uyum"
+    language: tr
+    type: "single-fact"
+    difficulty: easy
+    question: "Etik hattına yapılan bir bildirimin incelemesi en geç kaç günde sonuçlandırılır?"
+    answer: "45 gün"
+    expected_documents: ["Etik_Kurallar_ve_Ihbar_Proseduru.md"]
+    evidence:
+      - document: "Etik_Kurallar_ve_Ihbar_Proseduru.md"
+        quote: "İncelemeler, bildirimin alındığı tarihten itibaren 45 gün içinde sonuçlandırılır."
+  - id: "huk-016"
+    department: "hukuk-uyum"
+    language: tr
+    type: "negative/unanswerable"
+    difficulty: medium
+    question: "Etik hattına ihbarda bulunan çalışanlara ödenen ihbar ödülü ne kadar?"
+    answer: null
+    expected_documents: []
+    evidence: []
+    absent_terms: ["ihbar ödülü", "ihbarcı ödülü", "whistleblower reward"]
+    notes: "Etik prosedürü ihbar kanallarını, inceleme sürelerini ve misilleme yasağını düzenler; ihbar sahiplerine herhangi bir ödül veya ödeme öngörmez."
+
+  # ── insan-kaynaklari ────────────────────────────────────────────
+  - id: "ik-001"
+    department: "insan-kaynaklari"
+    language: tr
+    type: "multi-hop"
+    difficulty: hard
+    question: "Hibrit çalışıyorum, ayda ortalama haftada 2 gün evden çalışıyorum. 2026'da aylık ne kadar uzaktan çalışma ödeneği alırım?"
+    answer: "2750"
+    answer_variants: ["2.750 TL", "TRY 2,750"]
+    expected_documents: ["Uzaktan_ve_Hibrit_Calisma_Politikasi_2026.docx", "Butce_ve_Gider_Plani_2026.xlsx"]
+    evidence:
+      - document: "Uzaktan_ve_Hibrit_Calisma_Politikasi_2026.docx"
+        quote: "Uzaktan çalışma ödeneğine hak kazanmak için çalışanın bir takvim ayı içinde ortalama olarak haftada en az 2 gün uzaktan çalışmış olması gerekir."
+      - document: "Uzaktan_ve_Hibrit_Calisma_Politikasi_2026.docx"
+        quote: "2026 yılı tutarları için '2026 Bütçe ve Gider Planı' dosyasının 'Yan Haklar ve Ödenekler' sayfasına bakınız."
+      - document: "Butce_ve_Gider_Plani_2026.xlsx"
+        quote: "Uzaktan çalışma ödeneği | Aylık, kişi başı | Uygunluk kriterini sağlayan hibrit ve uzaktan çalışanlar | 1900 | 2750"
+  - id: "ik-002"
+    department: "insan-kaynaklari"
+    language: en
+    type: "multi-hop"
+    difficulty: hard
+    question: "I'm moving to hybrid work for the first time. How much one-off home-office setup support can I get in 2026, and how long do I have to upload the receipts?"
+    answer: "7500; 60 gün"
+    answer_variants: ["TRY 7,500; 60 days", "7.500 TL; 60 gün"]
+    expected_documents: ["Uzaktan_ve_Hibrit_Calisma_Politikasi_2026.docx", "Butce_ve_Gider_Plani_2026.xlsx"]
+    evidence:
+      - document: "Uzaktan_ve_Hibrit_Calisma_Politikasi_2026.docx"
+        quote: "Desteğin ödenmesi için harcama belgelerinin geçiş tarihinden itibaren 60 gün içinde İK Portalı'na yüklenmesi gerekir."
+      - document: "Butce_ve_Gider_Plani_2026.xlsx"
+        quote: "Ev-ofis kurulum desteği | Tek seferlik | Hibrit veya uzaktan modele ilk kez geçen çalışanlar | 5000 | 7500"
+  - id: "ik-003"
+    department: "insan-kaynaklari"
+    language: tr
+    type: "single-fact"
+    difficulty: easy
+    question: "Hibrit çalışanların ofiste olması beklenen çekirdek günler hangileri?"
+    answer: "Salı ve Perşembe"
+    answer_variants: ["Salı, Perşembe", "Tuesday and Thursday"]
+    expected_documents: ["Uzaktan_ve_Hibrit_Calisma_Politikasi_2026.docx"]
+    evidence:
+      - document: "Uzaktan_ve_Hibrit_Calisma_Politikasi_2026.docx"
+        quote: "Bu günlerden ikisi çekirdek ofis günleri olan Salı ve Perşembe'dir."
+  - id: "ik-004"
+    department: "insan-kaynaklari"
+    language: tr
+    type: "temporal/version"
+    difficulty: medium
+    question: "2024'te yürürlüğe giren önceki uzaktan çalışma politikasında haftada kaç gün ofise gelmek gerekiyordu?"
+    answer: "3 gün"
+    answer_variants: ["haftada 3 gün"]
+    expected_documents: ["Uzaktan_ve_Hibrit_Calisma_Politikasi_2026.docx"]
+    evidence:
+      - document: "Uzaktan_ve_Hibrit_Calisma_Politikasi_2026.docx"
+        quote: "2.0 | 02.01.2024 | Haftada 3 gün ofis; çekirdek günler Salı, Çarşamba, Perşembe"
+  - id: "ik-005"
+    department: "insan-kaynaklari"
+    language: en
+    type: "single-fact"
+    difficulty: easy
+    question: "How many working days a year am I allowed to work from abroad?"
+    answer: "20 iş günü"
+    answer_variants: ["20 working days"]
+    expected_documents: ["Uzaktan_ve_Hibrit_Calisma_Politikasi_2026.docx"]
+    evidence:
+      - document: "Uzaktan_ve_Hibrit_Calisma_Politikasi_2026.docx"
+        quote: "Çalışanlar takvim yılı içinde toplam en fazla 20 iş günü yurt dışından çalışabilir."
+  - id: "ik-006"
+    department: "insan-kaynaklari"
+    language: tr
+    type: "table-lookup"
+    difficulty: medium
+    question: "7 yıllık kıdemim var; toplam kaç gün yıllık iznim oluyor?"
+    answer: "22 iş günü"
+    answer_variants: ["22 gün"]
+    expected_documents: ["Izin_Yonetmeligi_2026.pdf"]
+    evidence:
+      - document: "Izin_Yonetmeligi_2026.pdf"
+        quote: "5 yıl – 15 yıl 20 iş günü 2 iş günü 22 iş günü"
+  - id: "ik-007"
+    department: "insan-kaynaklari"
+    language: tr
+    type: "temporal/version"
+    difficulty: medium
+    question: "Nebula ek izni 2025 yılında kaç gündü?"
+    answer: "1 iş günü"
+    answer_variants: ["1 gün"]
+    expected_documents: ["Izin_Yonetmeligi_2026.pdf"]
+    evidence:
+      - document: "Izin_Yonetmeligi_2026.pdf"
+        quote: "2025 yılında 1 iş günü olan Nebula ek izni, 1 Ocak 2026'dan itibaren 2 iş gününe çıkarılmıştır."
+  - id: "ik-008"
+    department: "insan-kaynaklari"
+    language: en
+    type: "table-lookup"
+    difficulty: easy
+    question: "How many days of paternity leave does the company give?"
+    answer: "10 iş günü"
+    answer_variants: ["10 working days", "10 days"]
+    expected_documents: ["Izin_Yonetmeligi_2026.pdf"]
+    evidence:
+      - document: "Izin_Yonetmeligi_2026.pdf"
+        quote: "Babalık izni 5 gün 10 iş günü"
+  - id: "ik-009"
+    department: "insan-kaynaklari"
+    language: tr
+    type: "single-fact"
+    difficulty: medium
+    question: "Kullanmadığım yıllık iznin en fazla kaç gününü devredebilirim ve devreden izni ne zamana kadar kullanmalıyım?"
+    answer: "10 iş günü; 31 Mart"
+    answer_variants: ["10 gün; 31 Mart"]
+    expected_documents: ["Izin_Yonetmeligi_2026.pdf"]
+    evidence:
+      - document: "Izin_Yonetmeligi_2026.pdf"
+        quote: "Kullanılmayan yıllık izinlerin en fazla 10 iş günü bir sonraki yıla devredilebilir. Devreden izinlerin 31 Mart'a kadar kullanılması esastır."
+  - id: "ik-010"
+    department: "insan-kaynaklari"
+    language: tr
+    type: "table-lookup"
+    difficulty: easy
+    question: "Performans değerlendirmesinde 4 notu alan birinin prim çarpanı yüzde kaç?"
+    answer: "%120"
+    answer_variants: ["120%", "1,20"]
+    expected_documents: ["Performans_Degerlendirme_ve_Prim_Sistemi.pdf"]
+    evidence:
+      - document: "Performans_Degerlendirme_ve_Prim_Sistemi.pdf"
+        quote: "4 Beklentinin üzerinde %120 %25"
+  - id: "ik-011"
+    department: "insan-kaynaklari"
+    language: en
+    type: "single-fact"
+    difficulty: medium
+    question: "Which company performance factor was applied to the 2025 bonuses?"
+    answer: "0,92"
+    answer_variants: ["0.92"]
+    expected_documents: ["Performans_Degerlendirme_ve_Prim_Sistemi.pdf"]
+    evidence:
+      - document: "Performans_Degerlendirme_ve_Prim_Sistemi.pdf"
+        quote: "2025 performans yılı için şirket performans faktörü 0,92 olarak belirlenmiş"
+  - id: "ik-012"
+    department: "insan-kaynaklari"
+    language: tr
+    type: "table-lookup"
+    difficulty: medium
+    question: "L5 yönetici kademesinde hedef prim oranı nedir?"
+    answer: "%18"
+    answer_variants: ["18%"]
+    expected_documents: ["Performans_Degerlendirme_ve_Prim_Sistemi.pdf"]
+    evidence:
+      - document: "Performans_Degerlendirme_ve_Prim_Sistemi.pdf"
+        quote: "L5 Yönetici %18"
+  - id: "ik-013"
+    department: "insan-kaynaklari"
+    language: tr
+    type: "single-fact"
+    difficulty: easy
+    question: "Bir yazılım mühendisi adayını önerirsem ve işe alınırsa ne kadar referans primi alırım?"
+    answer: "40.000 TL"
+    answer_variants: ["40000 TL", "TRY 40,000"]
+    expected_documents: ["Ise_Alim_ve_Oryantasyon_Rehberi.md"]
+    evidence:
+      - document: "Ise_Alim_ve_Oryantasyon_Rehberi.md"
+        quote: "Mühendislik rolleri (Ar-Ge, BT, Kalite) | 40.000 TL"
+  - id: "ik-014"
+    department: "insan-kaynaklari"
+    language: en
+    type: "temporal/version"
+    difficulty: medium
+    question: "What is the 2026 time-to-hire target, and what was the average in 2025?"
+    answer: "35 gün; 41 gün"
+    answer_variants: ["35 days; 41 days"]
+    expected_documents: ["Ise_Alim_ve_Oryantasyon_Rehberi.md"]
+    evidence:
+      - document: "Ise_Alim_ve_Oryantasyon_Rehberi.md"
+        quote: "2026 hedefimiz 35 gündür. Bu süre 2025 yılında ortalama 41 gün olarak gerçekleşti."
+  - id: "ik-015"
+    department: "insan-kaynaklari"
+    language: tr
+    type: "single-fact"
+    difficulty: easy
+    question: "Yeni başlayanlar için oryantasyon programı ne zaman başlıyor?"
+    answer: "her pazartesi saat 10:00"
+    answer_variants: ["Pazartesi 10:00"]
+    expected_documents: ["Ise_Alim_ve_Oryantasyon_Rehberi.md"]
+    evidence:
+      - document: "Ise_Alim_ve_Oryantasyon_Rehberi.md"
+        quote: "oryantasyonu her pazartesi saat 10:00'da İstanbul Genel Merkez'de"
+  - id: "ik-016"
+    department: "insan-kaynaklari"
+    language: tr
+    type: "negative/unanswerable"
+    difficulty: medium
+    question: "Şirket çalışanlara kreş veya çocuk bakım desteği veriyor mu, tutarı ne kadar?"
+    answer: null
+    expected_documents: []
+    evidence: []
+    absent_terms: ["kreş", "çocuk bakım desteği"]
+    notes: "Yan haklar sayfasında doğum ve evlilik yardımı var ama kreş/çocuk bakım desteği tanımlı değil; doğru davranış kaynakta olmadığını belirtmek."
+
+  # ── kalite-yonetimi ─────────────────────────────────────────────
+  - id: "kal-001"
+    department: "kalite-yonetimi"
+    language: tr
+    type: "single-fact"
+    difficulty: easy
+    question: "2026 ISO 27001 gözetim denetiminde kaç küçük uygunsuzluk çıktı?"
+    answer: "3"
+    answer_variants: ["3 küçük uygunsuzluk", "üç"]
+    expected_documents: ["ISO_27001_Gozetim_Denetimi_Raporu_2026.pdf", "Yonetim_Kurulu_Toplanti_Tutanagi_2026-05.docx"]
+    evidence:
+      - document: "ISO_27001_Gozetim_Denetimi_Raporu_2026.pdf"
+        quote: "Denetim sonucunda büyük uygunsuzluk tespit edilmemiş, 3 küçük uygunsuzluk ve 4 gözlem raporlanmıştır."
+      - document: "Yonetim_Kurulu_Toplanti_Tutanagi_2026-05.docx"
+        quote: "3 minör uygunsuzluğun tamamının 9 Eylül 2026 son tarihinden önce kapatıldığı"
+  - id: "kal-002"
+    department: "kalite-yonetimi"
+    language: tr
+    type: "single-fact"
+    difficulty: easy
+    question: "ISO 27001 sertifikamız hangi tarihe kadar geçerli?"
+    answer: "27 Haziran 2027"
+    answer_variants: ["27.06.2027", "27 June 2027"]
+    expected_documents: ["ISO_27001_Gozetim_Denetimi_Raporu_2026.pdf"]
+    evidence:
+      - document: "ISO_27001_Gozetim_Denetimi_Raporu_2026.pdf"
+        quote: "Sertifika 28 Haziran 2024'te verilmiştir ve 27 Haziran 2027 tarihine kadar geçerlidir."
+  - id: "kal-003"
+    department: "kalite-yonetimi"
+    language: en
+    type: "single-fact"
+    difficulty: easy
+    question: "Who was the lead auditor of the June 2026 ISO 27001 surveillance audit?"
+    answer: "Nihat Karaca"
+    expected_documents: ["ISO_27001_Gozetim_Denetimi_Raporu_2026.pdf"]
+    evidence:
+      - document: "ISO_27001_Gozetim_Denetimi_Raporu_2026.pdf"
+        quote: "Baş denetçi Nihat Karaca, belgenin sürdürülmesini önermiştir."
+  - id: "kal-004"
+    department: "kalite-yonetimi"
+    language: tr
+    type: "table-lookup"
+    difficulty: medium
+    question: "Erişim gözden geçirme gecikmesiyle ilgili NC-1 bulgusunun düzeltici faaliyet termini nedir?"
+    answer: "31.07.2026"
+    answer_variants: ["31 Temmuz 2026"]
+    expected_documents: ["ISO_27001_Gozetim_Denetimi_Raporu_2026.pdf"]
+    evidence:
+      - document: "ISO_27001_Gozetim_Denetimi_Raporu_2026.pdf"
+        quote: "NC-1 Otomatik hatırlatma 31.07.2026"
+  - id: "kal-005"
+    department: "kalite-yonetimi"
+    language: tr
+    type: "table-lookup"
+    difficulty: easy
+    question: "Release kalite kapısına göre p95 gecikmede en fazla ne kadar gerilemeye izin veriliyor?"
+    answer: "%10"
+    answer_variants: ["En fazla %10", "10%"]
+    expected_documents: ["Release_Kalite_Kapisi_Proseduru.docx"]
+    evidence:
+      - document: "Release_Kalite_Kapisi_Proseduru.docx"
+        quote: "K5 | p95 gecikme gerilemesi | En fazla %10 | Performans karşılaştırması"
+  - id: "kal-006"
+    department: "kalite-yonetimi"
+    language: tr
+    type: "temporal/version"
+    difficulty: hard
+    question: "Kalite kapısı prosedürünün 2025 sürümünde p95 gerileme eşiği kaç olarak tanımlanmıştı?"
+    answer: "%15"
+    answer_variants: ["15%"]
+    expected_documents: ["Release_Kalite_Kapisi_Proseduru.docx"]
+    evidence:
+      - document: "Release_Kalite_Kapisi_Proseduru.docx"
+        quote: "2.0 | 06.01.2025 | K5 eşiği %15 olarak tanımlandı"
+  - id: "kal-007"
+    department: "kalite-yonetimi"
+    language: tr
+    type: "single-fact"
+    difficulty: easy
+    question: "Yıl sonu sürüm dondurma dönemi hangi tarihler arasında uygulanıyor?"
+    answer: "15 Aralık; 5 Ocak"
+    answer_variants: ["15 Aralık – 5 Ocak", "15 December to 5 January"]
+    expected_documents: ["Release_Kalite_Kapisi_Proseduru.docx", "Kalite_Metrikleri_2026_Q3.txt"]
+    evidence:
+      - document: "Release_Kalite_Kapisi_Proseduru.docx"
+        quote: "her yıl 15 Aralık ile 5 Ocak arasında sürüm dondurma uygulanır"
+      - document: "Kalite_Metrikleri_2026_Q3.txt"
+        quote: "15 Aralık – 5 Ocak sürüm dondurma dönemi"
+  - id: "kal-008"
+    department: "kalite-yonetimi"
+    language: en
+    type: "single-fact"
+    difficulty: medium
+    question: "How many quality-gate waivers can be approved in a single quarter?"
+    answer: "2"
+    answer_variants: ["two", "en fazla 2"]
+    expected_documents: ["Release_Kalite_Kapisi_Proseduru.docx"]
+    evidence:
+      - document: "Release_Kalite_Kapisi_Proseduru.docx"
+        quote: "Bir çeyrekte en fazla 2 muafiyet onaylanabilir"
+  - id: "kal-009"
+    department: "kalite-yonetimi"
+    language: tr
+    type: "temporal/version"
+    difficulty: medium
+    question: "2026'nın ikinci çeyreğinde müşteriye ulaşan (kaçan) hata sayısı kaçtı?"
+    answer: "22"
+    expected_documents: ["Kalite_Metrikleri_2026_Q3.txt"]
+    evidence:
+      - document: "Kalite_Metrikleri_2026_Q3.txt"
+        quote: "Üçüncü çeyrekte müşteriye ulaşan (kaçan) hata sayısı 14'e düştü; ikinci çeyrekte bu sayı 22 idi."
+  - id: "kal-010"
+    department: "kalite-yonetimi"
+    language: en
+    type: "table-lookup"
+    difficulty: medium
+    question: "What was the flaky test rate in Q3 2026?"
+    answer: "%1,3"
+    answer_variants: ["1.3%"]
+    expected_documents: ["Kalite_Metrikleri_2026_Q3.txt"]
+    evidence:
+      - document: "Kalite_Metrikleri_2026_Q3.txt"
+        quote: "Kararsız (flaky) test oranı %2,2 %1,3 ≤ %1,5"
+  - id: "kal-011"
+    department: "kalite-yonetimi"
+    language: tr
+    type: "single-fact"
+    difficulty: easy
+    question: "Q3 2026'da Sev-1/Sev-2 olaylarda ortalama düzeltme süresi (MTTR) ne kadardı?"
+    answer: "1 saat 12 dakika"
+    answer_variants: ["72 dakika", "1 hour 12 minutes"]
+    expected_documents: ["Kalite_Metrikleri_2026_Q3.txt"]
+    evidence:
+      - document: "Kalite_Metrikleri_2026_Q3.txt"
+        quote: "Sev-1/Sev-2 olaylarda ortalama düzeltme süresi (MTTR) 1 saat 12 dakika oldu"
+  - id: "kal-012"
+    department: "kalite-yonetimi"
+    language: tr
+    type: "multi-hop"
+    difficulty: hard
+    question: "v3.4 öncesinde muafiyet verilen kalite kapısı kriterinin normalde istenen eşiği neydi?"
+    answer: "En az %70"
+    answer_variants: ["%70", "70%"]
+    expected_documents: ["Kalite_Metrikleri_2026_Q3.txt", "Release_Kalite_Kapisi_Proseduru.docx"]
+    evidence:
+      - document: "Kalite_Metrikleri_2026_Q3.txt"
+        quote: "Kalite kapısı için bir muafiyet onaylandı (v3.4 öncesi, K2 toplam kapsam kriteri; toplam kapsam %69,4 ölçüldü)."
+      - document: "Release_Kalite_Kapisi_Proseduru.docx"
+        quote: "K2 | Toplam kod kapsamı | En az %70 | CI kapsam raporu"
+  - id: "kal-013"
+    department: "kalite-yonetimi"
+    language: en
+    type: "multi-hop"
+    difficulty: medium
+    question: "Who chairs the meeting that release candidates must pass at 14:00 on release day?"
+    answer: "Selin Arslan"
+    expected_documents: ["Engineering_Code_Review_Guidelines.txt", "Release_Kalite_Kapisi_Proseduru.docx"]
+    evidence:
+      - document: "Engineering_Code_Review_Guidelines.txt"
+        quote: "Release candidates must pass the quality gate run by the Quality team before the Go/No-Go meeting at 14:00."
+      - document: "Release_Kalite_Kapisi_Proseduru.docx"
+        quote: "Kalite Müdürü (Selin Arslan): Go/No-Go toplantısına başkanlık eder ve nihai kararı kayda geçirir."
+  - id: "kal-014"
+    department: "kalite-yonetimi"
+    language: tr
+    type: "negative/unanswerable"
+    difficulty: medium
+    question: "Şirketin SOC 2 Type II raporu en son hangi denetim firması tarafından hazırlandı?"
+    answer: null
+    expected_documents: []
+    evidence: []
+    absent_terms: ["SOC 2", "SOC2"]
+    notes: "Corpus yalnızca ISO/IEC 27001 gözetim denetimini ve ISO 9001'e atfı içerir; SOC 2 raporu yoktur. Model ISO 27001 denetçisini (Certa) SOC 2 cevabı olarak uydurmamalıdır."
+
+  # ── musteri-deneyimi ────────────────────────────────────────────
+  - id: "md-001"
+    department: "musteri-deneyimi"
+    language: tr
+    type: "table-lookup"
+    difficulty: easy
+    question: "Kurumsal plandaki bir müşteri P2 öncelikli talep açarsa ilk yanıtı en geç ne zaman almalı?"
+    answer: "4 saat"
+    answer_variants: ["4 hours", "dört saat"]
+    expected_documents: ["Destek_SLA_Matrisi_2026.xlsx"]
+    evidence:
+      - document: "Destek_SLA_Matrisi_2026.xlsx"
+        quote: "Kurumsal | 30 dakika | 4 saat | 1 iş günü | 3 iş günü"
+  - id: "md-002"
+    department: "musteri-deneyimi"
+    language: en
+    type: "table-lookup"
+    difficulty: easy
+    question: "What is the first-response target for a P1 ticket on the Kurumsal Plus plan?"
+    answer: "15 dakika"
+    answer_variants: ["15 minutes"]
+    expected_documents: ["Destek_SLA_Matrisi_2026.xlsx"]
+    evidence:
+      - document: "Destek_SLA_Matrisi_2026.xlsx"
+        quote: "Kurumsal Plus | 15 dakika | 2 saat | 8 iş saati | 2 iş günü"
+  - id: "md-003"
+    department: "musteri-deneyimi"
+    language: tr
+    type: "table-lookup"
+    difficulty: medium
+    question: "Profesyonel paket kullanan bir müşterinin normal (P3) talebine ilk dönüş süresi nedir?"
+    answer: "2 iş günü"
+    answer_variants: ["iki iş günü", "2 business days"]
+    expected_documents: ["Destek_SLA_Matrisi_2026.xlsx"]
+    evidence:
+      - document: "Destek_SLA_Matrisi_2026.xlsx"
+        quote: "Profesyonel | 2 saat | 8 iş saati | 2 iş günü | 5 iş günü"
+  - id: "md-004"
+    department: "musteri-deneyimi"
+    language: tr
+    type: "table-lookup"
+    difficulty: medium
+    question: "Kurumsal planlı bir müşterinin aylık erişilebilirliği %98,7'ye düştüyse ne kadar hizmet kredisi alır?"
+    answer: "%25"
+    answer_variants: ["25%", "aylık ücretin %25'i"]
+    expected_documents: ["Destek_SLA_Matrisi_2026.xlsx"]
+    evidence:
+      - document: "Destek_SLA_Matrisi_2026.xlsx"
+        quote: "Kurumsal | %99,0 altı – %95,0 ve üzeri | %25"
+  - id: "md-005"
+    department: "musteri-deneyimi"
+    language: tr
+    type: "table-lookup"
+    difficulty: medium
+    question: "Kurumsal Plus müşterisi P1 bir sorunda kaç dakikada bir durum güncellemesi bekleyebilir?"
+    answer: "30 dakika"
+    answer_variants: ["30 minutes", "yarım saatte bir"]
+    expected_documents: ["Destek_SLA_Matrisi_2026.xlsx"]
+    evidence:
+      - document: "Destek_SLA_Matrisi_2026.xlsx"
+        quote: "Kurumsal Plus | 4 saat | 1 iş günü | 3 iş günü | Sonraki sürüm | 30 dakika"
+  - id: "md-006"
+    department: "musteri-deneyimi"
+    language: tr
+    type: "temporal/version"
+    difficulty: hard
+    question: "Geçen yılki SLA matrisinde Kurumsal müşteriler için P1 ilk yanıt hedefi neydi?"
+    answer: "1 saat"
+    answer_variants: ["bir saat", "60 dakika", "1 hour"]
+    expected_documents: ["Destek_SLA_Matrisi_2026.xlsx"]
+    evidence:
+      - document: "Destek_SLA_Matrisi_2026.xlsx"
+        quote: "2025 matrisinde Kurumsal P1 ilk yanıt hedefi 1 saat idi; 2026 matrisinde 30 dakikaya indirildi."
+  - id: "md-007"
+    department: "musteri-deneyimi"
+    language: tr
+    type: "single-fact"
+    difficulty: easy
+    question: "Müşteriden yanıt beklenen bir destek talebi kaç gün sonra kendiliğinden kapanıyor?"
+    answer: "7 gün"
+    answer_variants: ["7 days", "yedi gün"]
+    expected_documents: ["Musteri_Destek_El_Kitabi.md"]
+    evidence:
+      - document: "Musteri_Destek_El_Kitabi.md"
+        quote: "müşteri yanıt vermezse talep 7 gün sonunda otomatik olarak kapanır"
+  - id: "md-008"
+    department: "musteri-deneyimi"
+    language: tr
+    type: "temporal/version"
+    difficulty: medium
+    question: "El kitabının 4.0 sürümünde otomatik kapanma süresi kaç gündü?"
+    answer: "10 gün"
+    answer_variants: ["10 days", "on gün"]
+    expected_documents: ["Musteri_Destek_El_Kitabi.md"]
+    evidence:
+      - document: "Musteri_Destek_El_Kitabi.md"
+        quote: "4.0 | 03.03.2025 | Otomatik kapanma süresi 10 gün olarak belirlendi"
+  - id: "md-009"
+    department: "musteri-deneyimi"
+    language: en
+    type: "single-fact"
+    difficulty: medium
+    question: "How long can a P1 ticket stay with L1 before it has to be escalated to L2?"
+    answer: "45 dakika"
+    answer_variants: ["45 minutes"]
+    expected_documents: ["Musteri_Destek_El_Kitabi.md"]
+    evidence:
+      - document: "Musteri_Destek_El_Kitabi.md"
+        quote: "P1 talep 45 dakika içinde L1'de çözülemezse L2'ye aktarılır"
+  - id: "md-010"
+    department: "musteri-deneyimi"
+    language: tr
+    type: "temporal/version"
+    difficulty: medium
+    question: "2026'nın üçüncü çeyreğinde NPS kaç oldu ve bir önceki çeyrekte kaçtı?"
+    answer: "44; 46"
+    answer_variants: ["Q3: 44, Q2: 46"]
+    expected_documents: ["Musteri_Memnuniyeti_Raporu_2026_Q3.pdf", "Investor_Update_Q3_2026.pdf"]
+    evidence:
+      - document: "Musteri_Memnuniyeti_Raporu_2026_Q3.pdf"
+        quote: "Net Tavsiye Skoru (NPS) 44 oldu. Skor, ikinci çeyrekteki 46 seviyesinin 2 puan altında kalsa da"
+      - document: "Investor_Update_Q3_2026.pdf"
+        quote: "NPS slipped from 46 in Q2 to 44 in Q3."
+  - id: "md-011"
+    department: "musteri-deneyimi"
+    language: tr
+    type: "single-fact"
+    difficulty: easy
+    question: "Q3 memnuniyet anketinde müşterilerin en çok şikâyet ettiği konu neydi?"
+    answer: "rapor dışa aktarma performansı"
+    answer_variants: ["rapor dışa aktarma", "report export performance"]
+    expected_documents: ["Musteri_Memnuniyeti_Raporu_2026_Q3.pdf", "Investor_Update_Q3_2026.pdf", "Kalite_Metrikleri_2026_Q3.txt"]
+    evidence:
+      - document: "Musteri_Memnuniyeti_Raporu_2026_Q3.pdf"
+        quote: "En sık dile getirilen sorun, rapor dışa aktarma performansı oldu."
+      - document: "Investor_Update_Q3_2026.pdf"
+        quote: "The single largest driver was report export performance on large accounts."
+      - document: "Kalite_Metrikleri_2026_Q3.txt"
+        quote: "en çok şikâyet edilen konunun rapor dışa aktarma performansı olmasıyla örtüşmektedir"
+  - id: "md-012"
+    department: "musteri-deneyimi"
+    language: en
+    type: "single-fact"
+    difficulty: easy
+    question: "What was the annualised gross logo churn in H1 2026?"
+    answer: "6.9%"
+    answer_variants: ["%6,9", "6,9%"]
+    expected_documents: ["Churn_Analysis_H1_2026.docx"]
+    evidence:
+      - document: "Churn_Analysis_H1_2026.docx"
+        quote: "Annualised gross logo churn for H1 2026 was 6.9%, down from 7.8% for full-year 2025."
+  - id: "md-013"
+    department: "musteri-deneyimi"
+    language: en
+    type: "table-lookup"
+    difficulty: easy
+    question: "How many of the customers we lost in the first half of 2026 left because of missing integrations?"
+    answer: "9"
+    answer_variants: ["nine", "9 logos"]
+    expected_documents: ["Churn_Analysis_H1_2026.docx"]
+    evidence:
+      - document: "Churn_Analysis_H1_2026.docx"
+        quote: "Missing integrations | 9 | 22% | 18"
+  - id: "md-014"
+    department: "musteri-deneyimi"
+    language: tr
+    type: "multi-hop"
+    difficulty: hard
+    question: "Q3 anketinde en çok şikâyet edilen konu hangi sürümle ele alındı ve o sürümde 1 milyon satırlık bir rapor ne kadar sürede dışa aktarılıyor?"
+    answer: "v3.4; under 90 seconds"
+    answer_variants: ["v3.4, 90 saniyenin altında"]
+    expected_documents: ["Musteri_Memnuniyeti_Raporu_2026_Q3.pdf", "Release_Notes_NebulaCRM_v3.4.md"]
+    evidence:
+      - document: "Musteri_Memnuniyeti_Raporu_2026_Q3.pdf"
+        quote: "iyileştirme 15 Eylül 2026'da yayımlanan v3.4 sürümüyle canlıya alındı"
+      - document: "Release_Notes_NebulaCRM_v3.4.md"
+        quote: "In our benchmark a report with 1 million rows exports to CSV in under 90 seconds"
+  - id: "md-015"
+    department: "musteri-deneyimi"
+    language: tr
+    type: "multi-hop"
+    difficulty: hard
+    question: "H1 2026'da müşteri kaybına yol açan entegrasyon eksikliklerinden en sık dile getirileni hangi sürümde geldi?"
+    answer: "v3.4"
+    answer_variants: ["NebulaCRM v3.4", "3.4"]
+    expected_documents: ["Churn_Analysis_H1_2026.docx", "Release_Notes_NebulaCRM_v3.4.md"]
+    evidence:
+      - document: "Churn_Analysis_H1_2026.docx"
+        quote: "the most frequently cited gap was a native telephony (CTI) connector"
+      - document: "Release_Notes_NebulaCRM_v3.4.md"
+        quote: "NebulaCRM v3.4 introduces a native CTI telephony connector."
+  - id: "md-016"
+    department: "musteri-deneyimi"
+    language: tr
+    type: "negative/unanswerable"
+    difficulty: medium
+    question: "Destek hattında Q3 2026'daki ortalama çağrı bekleme süresi kaç saniyeydi?"
+    answer: null
+    expected_documents: []
+    evidence: []
+    absent_terms: ["çağrı bekleme süresi", "call waiting time"]
+    notes: "Rapor talep sayısı, medyan ilk yanıt ve CSAT verir; telefonda çağrı bekleme süresi hiçbir dokümanda ölçülmüyor."
+
+  # ── pazarlama-satis ─────────────────────────────────────────────
+  - id: "ps-001"
+    department: "pazarlama-satis"
+    language: tr
+    type: "table-lookup"
+    difficulty: easy
+    question: "Bu yıl Profesyonel planın kullanıcı başına aylık liste fiyatı ne kadar?"
+    answer: "1290"
+    answer_variants: ["1.290 TL", "TRY 1,290"]
+    expected_documents: ["Fiyat_Listesi_2026.xlsx"]
+    evidence:
+      - document: "Fiyat_Listesi_2026.xlsx"
+        quote: "Profesyonel | 1290 | 5 | Sınırsız | 20 | 300 | %99,5"
+  - id: "ps-002"
+    department: "pazarlama-satis"
+    language: en
+    type: "table-lookup"
+    difficulty: medium
+    question: "What is the monthly per-user price of the Enterprise plan for customers in Germany?"
+    answer: "75"
+    answer_variants: ["€75", "75 EUR"]
+    expected_documents: ["Fiyat_Listesi_2026.xlsx"]
+    evidence:
+      - document: "Fiyat_Listesi_2026.xlsx"
+        quote: "Enterprise | 75 | 25 | Nebula Technology GmbH | IST-1 veya FRA-1"
+  - id: "ps-003"
+    department: "pazarlama-satis"
+    language: tr
+    type: "table-lookup"
+    difficulty: easy
+    question: "NebulaAnalytics modülünü eklemek isteyen bir müşteriye 2026'da kullanıcı başı aylık ne kadar fiyat vermeliyim?"
+    answer: "390"
+    answer_variants: ["390 TL"]
+    expected_documents: ["Fiyat_Listesi_2026.xlsx"]
+    evidence:
+      - document: "Fiyat_Listesi_2026.xlsx"
+        quote: "NebulaAnalytics | kullanıcı/ay | 390 | 290"
+  - id: "ps-004"
+    department: "pazarlama-satis"
+    language: tr
+    type: "table-lookup"
+    difficulty: medium
+    question: "Sandbox ortamının 2026'daki aylık fiyatı nedir?"
+    answer: "6500"
+    answer_variants: ["6.500 TL"]
+    expected_documents: ["Fiyat_Listesi_2026.xlsx"]
+    evidence:
+      - document: "Fiyat_Listesi_2026.xlsx"
+        quote: "Sandbox ortamı | ortam/ay | 6500 | 5000"
+  - id: "ps-005"
+    department: "pazarlama-satis"
+    language: tr
+    type: "temporal/version"
+    difficulty: medium
+    question: "Geçen yıl Kurumsal planın kullanıcı başına aylık fiyatı ne kadardı?"
+    answer: "1.650 TL"
+    answer_variants: ["1650"]
+    expected_documents: ["Fiyat_Listesi_2025_ARSIV.pdf"]
+    evidence:
+      - document: "Fiyat_Listesi_2025_ARSIV.pdf"
+        quote: "Kurumsal 1.650 TL 25 Sınırsız"
+  - id: "ps-006"
+    department: "pazarlama-satis"
+    language: tr
+    type: "temporal/version"
+    difficulty: medium
+    question: "Yıllık peşin ödeme indirimi 2025'te yüzde kaçtı, 2026'da yüzde kaç oldu?"
+    answer: "%12; %15"
+    expected_documents: ["Fiyat_Listesi_2025_ARSIV.pdf", "Fiyat_Listesi_2026.xlsx"]
+    evidence:
+      - document: "Fiyat_Listesi_2025_ARSIV.pdf"
+        quote: "Yıllık peşin ödemede %12 indirim uygulanır."
+      - document: "Fiyat_Listesi_2026.xlsx"
+        quote: "Yıllık peşin ödeme | %15 | Yıllık"
+  - id: "ps-007"
+    department: "pazarlama-satis"
+    language: tr
+    type: "temporal/version"
+    difficulty: hard
+    question: "2025 fiyat listesine göre Deniz Koç en fazla yüzde kaça kadar indirimi kendisi onaylayabiliyordu?"
+    answer: "%20"
+    expected_documents: ["Fiyat_Listesi_2025_ARSIV.pdf"]
+    evidence:
+      - document: "Fiyat_Listesi_2025_ARSIV.pdf"
+        quote: "%20'ye kadar ise Pazarlama ve Satış Müdürü Deniz Koç tarafından onaylanır"
+  - id: "ps-008"
+    department: "pazarlama-satis"
+    language: tr
+    type: "multi-hop"
+    difficulty: hard
+    question: "Lodos Lojistik genişleme anlaşmasında verilen indirimi kimin onaylaması gerekiyor?"
+    answer: "Mehmet Yılmaz"
+    answer_variants: ["CEO", "CEO Mehmet Yılmaz"]
+    expected_documents: ["Satis_Performansi_2026_Q3.pptx", "Fiyat_Listesi_2026.xlsx"]
+    evidence:
+      - document: "Satis_Performansi_2026_Q3.pptx"
+        quote: "Lodos Lojistik A.Ş. | +1.100 kullanıcı (genişleme) | Kurumsal Plus | %28"
+      - document: "Fiyat_Listesi_2026.xlsx"
+        quote: "%25'in üzeri | Mehmet Yılmaz | CEO"
+  - id: "ps-009"
+    department: "pazarlama-satis"
+    language: tr
+    type: "single-fact"
+    difficulty: easy
+    question: "Üçüncü çeyrekte ortalama satış döngümüz kaç güne düştü?"
+    answer: "64 gün"
+    expected_documents: ["Satis_Performansi_2026_Q3.pptx", "Investor_Update_Q3_2026.pdf"]
+    evidence:
+      - document: "Satis_Performansi_2026_Q3.pptx"
+        quote: "Ortalama satış döngüsü | 71 gün | 64 gün | −7 gün"
+      - document: "Investor_Update_Q3_2026.pdf"
+        quote: "Average sales cycle of 64 days"
+  - id: "ps-010"
+    department: "pazarlama-satis"
+    language: tr
+    type: "temporal/version"
+    difficulty: medium
+    question: "2026'nın ikinci çeyreğinde kazanma oranımız neydi?"
+    answer: "%24"
+    expected_documents: ["Satis_Performansi_2026_Q3.pptx", "Investor_Update_Q3_2026.pdf"]
+    evidence:
+      - document: "Satis_Performansi_2026_Q3.pptx"
+        quote: "Kazanma oranı | %24 | %27 | +3 puan"
+      - document: "Investor_Update_Q3_2026.pdf"
+        quote: "win rate improved to 27% from 24% in Q2"
+  - id: "ps-011"
+    department: "pazarlama-satis"
+    language: en
+    type: "table-lookup"
+    difficulty: medium
+    question: "How many new customers did the DACH region bring in during Q3 2026?"
+    answer: "9"
+    expected_documents: ["Satis_Performansi_2026_Q3.pptx", "Investor_Update_Q3_2026.pdf"]
+    evidence:
+      - document: "Satis_Performansi_2026_Q3.pptx"
+        quote: "DACH (Berlin) | $0.13M | 9"
+      - document: "Investor_Update_Q3_2026.pdf"
+        quote: "nine of the 112 new logos we signed in Q3 were German"
+  - id: "ps-012"
+    department: "pazarlama-satis"
+    language: en
+    type: "single-fact"
+    difficulty: easy
+    question: "For how long does an approved deal registration protect a partner's opportunity?"
+    answer: "90 days"
+    expected_documents: ["Partner_Program_Guide_2026.md"]
+    evidence:
+      - document: "Partner_Program_Guide_2026.md"
+        quote: "An approved registration protects the opportunity for 90 days."
+  - id: "ps-013"
+    department: "pazarlama-satis"
+    language: en
+    type: "table-lookup"
+    difficulty: easy
+    question: "What resale margin does a Gold partner earn on NebulaCRM subscriptions?"
+    answer: "20%"
+    expected_documents: ["Partner_Program_Guide_2026.md"]
+    evidence:
+      - document: "Partner_Program_Guide_2026.md"
+        quote: "Gold | 10 | TRY 4,000,000 | ≥ 88% | 20%"
+  - id: "ps-014"
+    department: "pazarlama-satis"
+    language: tr
+    type: "table-lookup"
+    difficulty: medium
+    question: "Platinum partner seviyesine çıkmak için kaç sertifikalı danışman gerekiyor?"
+    answer: "20"
+    expected_documents: ["Partner_Program_Guide_2026.md"]
+    evidence:
+      - document: "Partner_Program_Guide_2026.md"
+        quote: "Platinum | 20 | TRY 10,000,000 | ≥ 90% | 25%"
+  - id: "ps-015"
+    department: "pazarlama-satis"
+    language: en
+    type: "temporal/version"
+    difficulty: medium
+    question: "Under the 2025 price list, how many API requests per minute was a Professional plan customer allowed?"
+    answer: "200"
+    answer_variants: ["dakikada 200 istek", "200 requests per minute"]
+    expected_documents: ["Fiyat_Listesi_2025_ARSIV.pdf", "Surum_Notlari_NebulaCRM_v3.3.md"]
+    evidence:
+      - document: "Fiyat_Listesi_2025_ARSIV.pdf"
+        quote: "Profesyonel planda API hız limiti 2025 boyunca dakikada 200 istek olarak uygulanmıştır."
+      - document: "Surum_Notlari_NebulaCRM_v3.3.md"
+        quote: "Profesyonel planda API hız limiti dakikada 200'den 300 isteğe yükseltildi"
+  - id: "ps-016"
+    department: "pazarlama-satis"
+    language: tr
+    type: "negative/unanswerable"
+    difficulty: medium
+    question: "Partner programında Diamond seviyesine çıkmak için hangi şartları sağlamamız gerekiyor?"
+    answer: null
+    expected_documents: []
+    evidence: []
+    absent_terms: ["Diamond", "Elmas seviye"]
+    notes: "Partner programında yalnızca Registered, Silver, Gold ve Platinum seviyeleri vardır; Diamond diye bir seviye tanımlanmamıştır."
+
+  # ── urun-yonetimi ───────────────────────────────────────────────
+  - id: "urun-001"
+    department: "urun-yonetimi"
+    language: tr
+    type: "temporal/version"
+    difficulty: medium
+    question: "v3.3 sürümüyle toplu içe aktarmada dosya başına kaç satıra kadar yükleme yapabiliyoruz?"
+    answer: "50.000 satır"
+    answer_variants: ["50000", "50,000 rows"]
+    expected_documents: ["Surum_Notlari_NebulaCRM_v3.3.md", "Release_Notes_NebulaCRM_v3.4.md"]
+    evidence:
+      - document: "Surum_Notlari_NebulaCRM_v3.3.md"
+        quote: "Toplu içe aktarma limiti 10.000 satırdan 50.000 satıra çıkarıldı."
+      - document: "Release_Notes_NebulaCRM_v3.4.md"
+        quote: "Bulk import now accepts up to 100,000 rows per file, up from 50,000 rows in v3.3."
+  - id: "urun-002"
+    department: "urun-yonetimi"
+    language: en
+    type: "temporal/version"
+    difficulty: medium
+    question: "What is the bulk import limit per file in NebulaCRM v3.4?"
+    answer: "100,000 rows"
+    answer_variants: ["100.000 satır", "100000"]
+    expected_documents: ["Release_Notes_NebulaCRM_v3.4.md", "NebulaCRM_API_v3_Reference.md"]
+    evidence:
+      - document: "Release_Notes_NebulaCRM_v3.4.md"
+        quote: "Bulk import now accepts up to 100,000 rows per file, up from 50,000 rows in v3.3."
+      - document: "NebulaCRM_API_v3_Reference.md"
+        quote: "Maximum records per bulk import job: 100,000 rows (since v3.4)."
+  - id: "urun-003"
+    department: "urun-yonetimi"
+    language: tr
+    type: "temporal/version"
+    difficulty: hard
+    question: "Profesyonel plandaki bir müşteri v3.3 gelmeden önce dakikada kaç API isteği yapabiliyordu?"
+    answer: "200"
+    answer_variants: ["dakikada 200 istek", "200 requests per minute"]
+    expected_documents: ["Surum_Notlari_NebulaCRM_v3.3.md", "Fiyat_Listesi_2025_ARSIV.pdf"]
+    evidence:
+      - document: "Surum_Notlari_NebulaCRM_v3.3.md"
+        quote: "Profesyonel planda API hız limiti dakikada 200'den 300 isteğe yükseltildi"
+      - document: "Fiyat_Listesi_2025_ARSIV.pdf"
+        quote: "Profesyonel planda API hız limiti 2025 boyunca dakikada 200 istek olarak uygulanmıştır."
+  - id: "urun-004"
+    department: "urun-yonetimi"
+    language: en
+    type: "single-fact"
+    difficulty: easy
+    question: "When did NebulaCRM v3.4 become generally available?"
+    answer: "15 September 2026"
+    answer_variants: ["15 Eylül 2026", "2026-09-15"]
+    expected_documents: ["Release_Notes_NebulaCRM_v3.4.md", "Investor_Update_Q3_2026.pdf", "PRD_Nebula_Assist.docx", "Kalite_Metrikleri_2026_Q3.txt", "Musteri_Memnuniyeti_Raporu_2026_Q3.pdf"]
+    evidence:
+      - document: "Release_Notes_NebulaCRM_v3.4.md"
+        quote: "NebulaCRM v3.4 became generally available on 15 September 2026."
+      - document: "Investor_Update_Q3_2026.pdf"
+        quote: "reached general availability on 15 September 2026 with release v3.4"
+      - document: "PRD_Nebula_Assist.docx"
+        quote: "Genel kullanım (GA): v3.4 sürümü ile 15 Eylül 2026."
+      - document: "Kalite_Metrikleri_2026_Q3.txt"
+        quote: "v3.4, 15 Eylül 2026'da planlanan tarihte yayınlandı"
+      - document: "Musteri_Memnuniyeti_Raporu_2026_Q3.pdf"
+        quote: "15 Eylül 2026'da yayımlanan v3.4 sürümüyle canlıya alındı"
+  - id: "urun-005"
+    department: "urun-yonetimi"
+    language: tr
+    type: "single-fact"
+    difficulty: easy
+    question: "Nebula Assist'te Kurumsal plan kullanıcısının aylık istek kotası kaç?"
+    answer: "500"
+    answer_variants: ["kullanıcı başına ayda 500 istek", "500 requests per user per month"]
+    expected_documents: ["PRD_Nebula_Assist.docx", "Release_Notes_NebulaCRM_v3.4.md"]
+    evidence:
+      - document: "PRD_Nebula_Assist.docx"
+        quote: "Aylık istek kotası Kurumsal planda kullanıcı başına 500, Kurumsal Plus planda 1.500 olmalıdır."
+      - document: "Release_Notes_NebulaCRM_v3.4.md"
+        quote: "Included in Kurumsal (500 requests per user per month)"
+  - id: "urun-006"
+    department: "urun-yonetimi"
+    language: tr
+    type: "single-fact"
+    difficulty: easy
+    question: "Nebula Assist PRD'sinde yanıt gecikmesi için p95 hedefi nedir?"
+    answer: "4 saniye"
+    answer_variants: ["4 sn", "4 seconds", "4 saniyenin altında"]
+    expected_documents: ["PRD_Nebula_Assist.docx"]
+    evidence:
+      - document: "PRD_Nebula_Assist.docx"
+        quote: "Yanıt gecikmesi p95 değeri 4 saniyenin altında olmalıdır"
+  - id: "urun-007"
+    department: "urun-yonetimi"
+    language: tr
+    type: "single-fact"
+    difficulty: easy
+    question: "Nebula Assist beta programına kaç pilot müşteri katılacaktı?"
+    answer: "40"
+    answer_variants: ["40 pilot müşteri", "kırk"]
+    expected_documents: ["PRD_Nebula_Assist.docx", "Release_Notes_NebulaCRM_v3.4.md", "Investor_Update_Q3_2026.pdf"]
+    evidence:
+      - document: "PRD_Nebula_Assist.docx"
+        quote: "Beta: 1 Temmuz 2026, 40 pilot müşteri; beta süresince kota uygulanmaz."
+      - document: "Release_Notes_NebulaCRM_v3.4.md"
+        quote: "Assist moves out of the beta that started on 1 July 2026 with 40 pilot customers."
+      - document: "Investor_Update_Q3_2026.pdf"
+        quote: "Nebula Assist left beta on 15 September 2026 after a ten-week pilot with 40 customers."
+  - id: "urun-008"
+    department: "urun-yonetimi"
+    language: en
+    type: "table-lookup"
+    difficulty: medium
+    question: "What weekly active usage target did the Nebula Assist PRD set for 90 days after GA?"
+    answer: "%35"
+    answer_variants: ["35%", "35% of licensed seats"]
+    expected_documents: ["PRD_Nebula_Assist.docx"]
+    evidence:
+      - document: "PRD_Nebula_Assist.docx"
+        quote: "Haftalık aktif kullanım | GA'dan 90 gün sonra lisanslı koltukların %35'i"
+  - id: "urun-009"
+    department: "urun-yonetimi"
+    language: tr
+    type: "multi-hop"
+    difficulty: hard
+    question: "v3.3 sürüm notlarında bilinen sorun olarak geçen büyük rapor dışa aktarma zaman aşımı hangi sürümde giderildi?"
+    answer: "v3.4"
+    answer_variants: ["NebulaCRM v3.4", "3.4"]
+    expected_documents: ["Surum_Notlari_NebulaCRM_v3.3.md", "Release_Notes_NebulaCRM_v3.4.md"]
+    evidence:
+      - document: "Surum_Notlari_NebulaCRM_v3.3.md"
+        quote: "200.000 satırın üzerindeki raporların dışa aktarımı zaman aşımına uğrayabilir."
+      - document: "Release_Notes_NebulaCRM_v3.4.md"
+        quote: "NebulaCRM v3.4 became generally available on 15 September 2026. This release makes Nebula Assist, our AI assistant, generally available, rebuilds report export from the ground up"
+  - id: "urun-010"
+    department: "urun-yonetimi"
+    language: en
+    type: "single-fact"
+    difficulty: easy
+    question: "Until when can we keep calling the NebulaCRM API v2 endpoints?"
+    answer: "31 March 2027"
+    answer_variants: ["31 Mart 2027", "2027-03-31"]
+    expected_documents: ["Release_Notes_NebulaCRM_v3.4.md", "NebulaCRM_API_v3_Reference.md", "Surum_Notlari_NebulaCRM_v3.3.md", "Stratejik_Plan_2026_2028.pptx"]
+    evidence:
+      - document: "Release_Notes_NebulaCRM_v3.4.md"
+        quote: "API v2 will be switched off on 31 March 2027."
+      - document: "NebulaCRM_API_v3_Reference.md"
+        quote: "API v2 is deprecated and will be switched off on 31 March 2027 (sunset date)"
+      - document: "Surum_Notlari_NebulaCRM_v3.3.md"
+        quote: "API v2 uç noktaları 31 Mart 2027 tarihinde kapatılacaktır."
+      - document: "Stratejik_Plan_2026_2028.pptx"
+        quote: "API v2'nin kullanımdan kaldırılması 31 Mart 2027'de tamamlanacak"
+  - id: "urun-011"
+    department: "urun-yonetimi"
+    language: en
+    type: "single-fact"
+    difficulty: medium
+    question: "During an FRA-1 tenant migration, how long is the tenant read-only at most?"
+    answer: "30 minutes"
+    answer_variants: ["30 dakika"]
+    expected_documents: ["Release_Notes_NebulaCRM_v3.4.md", "Investor_Update_Q3_2026.pdf"]
+    evidence:
+      - document: "Release_Notes_NebulaCRM_v3.4.md"
+        quote: "the tenant is read-only for at most 30 minutes during the final cut-over"
+      - document: "Investor_Update_Q3_2026.pdf"
+        quote: "lets existing tenants move with at most 30 minutes of read-only time"
+  - id: "urun-012"
+    department: "urun-yonetimi"
+    language: tr
+    type: "single-fact"
+    difficulty: medium
+    question: "Nebula Assist PRD'sinde istek başına çıkarım maliyeti hedefi ne kadar?"
+    answer: "0,45 TL"
+    answer_variants: ["0.45 TL", "TRY 0.45"]
+    expected_documents: ["PRD_Nebula_Assist.docx"]
+    evidence:
+      - document: "PRD_Nebula_Assist.docx"
+        quote: "İstek başına çıkarım maliyeti hedefi 0,45 TL'nin altındadır."
+  - id: "urun-013"
+    department: "urun-yonetimi"
+    language: tr
+    type: "negative/unanswerable"
+    difficulty: medium
+    question: "Nebula Assist'in görsel üretim özelliği hangi sürümde gelecek?"
+    answer: null
+    expected_documents: []
+    evidence: []
+    absent_terms: ["görsel üretim", "image generation"]
+    notes: "PRD ve sürüm notları Assist'i metin tabanlı (yanıt, özet, e-posta taslağı) tanımlar; görsel üretimden hiçbir yerde söz edilmiyor."
+
+  # ── cross ───────────────────────────────────────────────────────
+  - id: "x-001"
+    department: "cross"
+    language: tr
+    type: "multi-hop"
+    difficulty: hard
+    question: "Yük testi raporunda önerilen iki ek veritabanı replikasının satın alımını kim onaylamalı?"
+    answer: "CEO (Mehmet Yılmaz)"
+    answer_variants: ["Mehmet Yılmaz", "CEO"]
+    expected_documents: ["Load_Test_Report_2026_Q2.docx", "Satin_Alma_ve_Onay_Yetkileri_Proseduru.docx"]
+    evidence:
+      - document: "Load_Test_Report_2026_Q2.docx"
+        quote: "The estimated cost of the two extra DB replicas is TRY 840,000 for hardware and licences"
+      - document: "Satin_Alma_ve_Onay_Yetkileri_Proseduru.docx"
+        quote: "250.001 – 1.000.000 TL | CEO (Mehmet Yılmaz) | En az 3 yazılı teklif"
+  - id: "x-002"
+    department: "cross"
+    language: tr
+    type: "multi-hop"
+    difficulty: medium
+    question: "ISO 27001 gözetim denetiminde imzasız bulunan felaket kurtarma test kaydını kimin imzalaması gerekiyordu?"
+    answer: "Emre Kaya"
+    expected_documents: ["ISO_27001_Gozetim_Denetimi_Raporu_2026.pdf", "Yedekleme_ve_Felaket_Kurtarma_Plani.docx"]
+    evidence:
+      - document: "ISO_27001_Gozetim_Denetimi_Raporu_2026.pdf"
+        quote: "NC-3: 23 Mayıs 2026 tarihli felaket kurtarma testinin sonuç kaydında test sonuçlarını onaylayan"
+      - document: "Yedekleme_ve_Felaket_Kurtarma_Plani.docx"
+        quote: "DR test kayıtları BT Müdürü Emre Kaya tarafından imzalanarak onaylanır."
+  - id: "x-003"
+    department: "cross"
+    language: en
+    type: "multi-hop"
+    difficulty: hard
+    question: "Given April 2026's uptime after the database outage, which service-credit rate applied to Kurumsal customers?"
+    answer: "%10"
+    answer_variants: ["10%"]
+    expected_documents: ["Postmortem_INC-2026-0417_Database_Outage.pdf", "Destek_SLA_Matrisi_2026.xlsx"]
+    evidence:
+      - document: "Postmortem_INC-2026-0417_Database_Outage.pdf"
+        quote: "Monthly uptime for April 2026 was 99.61% for the shared production cluster."
+      - document: "Destek_SLA_Matrisi_2026.xlsx"
+        quote: "Kurumsal | %99,9 altı – %99,0 ve üzeri | %10 | Kurumsal taahhüt: %99,9"
+  - id: "x-004"
+    department: "cross"
+    language: en
+    type: "multi-hop"
+    difficulty: medium
+    question: "Which sub-processor runs inference for the AI assistant that became generally available in v3.4, and where is it hosted?"
+    answer: "Terra LLM Hizmetleri A.Ş.; Türkiye (İstanbul)"
+    answer_variants: ["Terra LLM Hizmetleri"]
+    expected_documents: ["Release_Notes_NebulaCRM_v3.4.md", "Subprocessor_Register_2026.xlsx"]
+    evidence:
+      - document: "Release_Notes_NebulaCRM_v3.4.md"
+        quote: "This release makes Nebula Assist, our AI assistant, generally available"
+      - document: "Subprocessor_Register_2026.xlsx"
+        quote: "Terra LLM Hizmetleri A.Ş. | LLM inference for Nebula Assist | Türkiye (İstanbul)"
+  - id: "x-005"
+    department: "cross"
+    language: tr
+    type: "multi-hop"
+    difficulty: medium
+    question: "Stratejik planda 2027'nin ikinci yarısı için öngörülen yeni ofisin pazar araştırmasına Yönetim Kurulu ne kadar bütçe onayladı?"
+    answer: "3,5 milyon TL"
+    answer_variants: ["TRY 3.5M"]
+    expected_documents: ["Stratejik_Plan_2026_2028.pptx", "Yonetim_Kurulu_Toplanti_Tutanagi_2026-05.docx"]
+    evidence:
+      - document: "Stratejik_Plan_2026_2028.pptx"
+        quote: "Körfez: Dubai ofisi 2027 ikinci yarı için planlanıyor"
+      - document: "Yonetim_Kurulu_Toplanti_Tutanagi_2026-05.docx"
+        quote: "2026/05-3 | Dubai pazar araştırması | 3,5 milyon TL bütçe onaylandı"
+  - id: "x-006"
+    department: "cross"
+    language: tr
+    type: "multi-hop"
+    difficulty: hard
+    question: "2025 fiyat listesinde Profesyonel planın dakikalık API limiti kaçtı, güncel API v3 referansında kaç?"
+    answer: "200; 300"
+    answer_variants: ["200 istek/dk → 300 istek/dk"]
+    expected_documents: ["Fiyat_Listesi_2025_ARSIV.pdf", "NebulaCRM_API_v3_Reference.md"]
+    evidence:
+      - document: "Fiyat_Listesi_2025_ARSIV.pdf"
+        quote: "Profesyonel planda API hız limiti 2025 boyunca dakikada 200 istek olarak uygulanmıştır."
+      - document: "NebulaCRM_API_v3_Reference.md"
+        quote: "| Professional (Profesyonel) | 300 | 2 |"
+  - id: "x-007"
+    department: "cross"
+    language: tr
+    type: "multi-hop"
+    difficulty: medium
+    question: "Tadilat haftasında uzaktan çalışacak 10. kat ekiplerinin normalde ofiste bulunması gereken çekirdek günler hangileri?"
+    answer: "Salı ve Perşembe"
+    expected_documents: ["Genelge_Maslak_10_Kat_Tadilati.png", "Uzaktan_ve_Hibrit_Calisma_Politikasi_2026.docx"]
+    evidence:
+      - document: "Genelge_Maslak_10_Kat_Tadilati.png"
+        quote: "10. katta oturan Ar-Ge İstanbul ve Ürün Yönetimi ekipleri uzaktan çalışacaktır."
+      - document: "Uzaktan_ve_Hibrit_Calisma_Politikasi_2026.docx"
+        quote: "Bu günlerden ikisi çekirdek ofis günleri olan Salı ve Perşembe'dir."
+  - id: "x-008"
+    department: "cross"
+    language: en
+    type: "multi-hop"
+    difficulty: hard
+    question: "Which laptop model is assigned to the incident commander of INC-2026-0417?"
+    answer: "NB-16X"
+    expected_documents: ["Postmortem_INC-2026-0417_Database_Outage.pdf", "BT_Varlik_Envanteri_2026.xlsx"]
+    evidence:
+      - document: "Postmortem_INC-2026-0417_Database_Outage.pdf"
+        quote: "Incident commander Ece Polat, DevOps Engineer"
+      - document: "BT_Varlik_Envanteri_2026.xlsx"
+        quote: "NB-LT-0090 | NB-16X | Ece Polat | Bilgi Teknolojileri | Ankara"
+  - id: "x-009"
+    department: "cross"
+    language: tr
+    type: "multi-hop"
+    difficulty: hard
+    question: "ISO 27001 denetiminde yıllık güvenlik anketi doldurtulmadığı tespit edilen SMS sağlayıcısı hangi şirket?"
+    answer: "Lyra Mesaj A.Ş."
+    expected_documents: ["ISO_27001_Gozetim_Denetimi_Raporu_2026.pdf", "Subprocessor_Register_2026.xlsx"]
+    evidence:
+      - document: "ISO_27001_Gozetim_Denetimi_Raporu_2026.pdf"
+        quote: "NC-2: Kişisel veri işleyen tedarikçiler listesinde yer alan bir SMS hizmet sağlayıcısı için yıllık bilgi"
+      - document: "Subprocessor_Register_2026.xlsx"
+        quote: "Lyra Mesaj A.Ş. | SMS one-time passwords | Türkiye (İzmir)"
+      - document: "Subprocessor_Register_2026.xlsx"
+        quote: "31.03.2026 | Removed | Bora İletişim A.Ş. (SMS)"
+    notes: "Bora İletişim A.Ş. 31.03.2026'da kayıttan çıkarıldığı için Haziran 2026 denetimindeki SMS sağlayıcısı Lyra Mesaj A.Ş.'dir."
+  - id: "x-010"
+    department: "cross"
+    language: tr
+    type: "multi-hop"
+    difficulty: medium
+    question: "Lodos Lojistik'in Q3'teki genişlemesi hangi plan üzerinden yapıldı ve bu planın 2026 liste fiyatı nedir?"
+    answer: "Kurumsal Plus; 3.400 TL'den başlayan"
+    expected_documents: ["Satis_Performansi_2026_Q3.pptx", "Fiyat_Listesi_2026.xlsx"]
+    evidence:
+      - document: "Satis_Performansi_2026_Q3.pptx"
+        quote: "| Lodos Lojistik A.Ş. | +1.100 kullanıcı (genişleme) | Kurumsal Plus | %28 |"
+      - document: "Fiyat_Listesi_2026.xlsx"
+        quote: "| Kurumsal Plus | 3.400 TL'den başlayan (teklif üzerine) | 100 |"
+  - id: "x-011"
+    department: "cross"
+    language: en
+    type: "multi-hop"
+    difficulty: hard
+    question: "The board asked for quarterly reporting on database failover drills. Who owns the failover game-day action from the April postmortem, and when was it due?"
+    answer: "Ece Polat; 30 Jun 2026"
+    answer_variants: ["30 June 2026"]
+    expected_documents: ["Yonetim_Kurulu_Toplanti_Tutanagi_2026-05.docx", "Postmortem_INC-2026-0417_Database_Outage.pdf"]
+    evidence:
+      - document: "Yonetim_Kurulu_Toplanti_Tutanagi_2026-05.docx"
+        quote: "Dr. Levent Sarıgül, devretme tatbikatı sonuçlarının her çeyrek Denetim Komitesi'ne raporlanmasını talep etti."
+      - document: "Postmortem_INC-2026-0417_Database_Outage.pdf"
+        quote: "AI-4 Quarterly database failover game day Ece Polat 30 Jun 2026 In progress"
+  - id: "x-012"
+    department: "cross"
+    language: tr
+    type: "multi-hop"
+    difficulty: medium
+    question: "Q2 yük testi NebulaCRM'in hangi sürümü üzerinde koşuldu ve o sürüm hangi tarihte yayınlanmıştı?"
+    answer: "v3.3; 12 Mayıs 2026"
+    expected_documents: ["Load_Test_Report_2026_Q2.docx", "Surum_Notlari_NebulaCRM_v3.3.md"]
+    evidence:
+      - document: "Load_Test_Report_2026_Q2.docx"
+        quote: "a production-sized replica of the IST-1 environment running NebulaCRM v3.3"
+      - document: "Surum_Notlari_NebulaCRM_v3.3.md"
+        quote: "NebulaCRM v3.3, 12 Mayıs 2026 tarihinde tüm müşterilere kademeli olarak açıldı."
+  - id: "x-013"
+    department: "cross"
+    language: en
+    type: "multi-hop"
+    difficulty: hard
+    question: "How large is the 2026 OPEX budget of the department whose manager chairs the release Go/No-Go meeting?"
+    answer: "6.1"
+    answer_variants: ["6,1 milyon TL", "TRY 6.1M"]
+    expected_documents: ["Release_Kalite_Kapisi_Proseduru.docx", "Butce_ve_Gider_Plani_2026.xlsx"]
+    evidence:
+      - document: "Release_Kalite_Kapisi_Proseduru.docx"
+        quote: "Kalite Müdürü (Selin Arslan): Go/No-Go toplantısına başkanlık eder ve nihai kararı kayda geçirir."
+      - document: "Butce_ve_Gider_Plani_2026.xlsx"
+        quote: "Kalite Yönetimi | Selin Arslan | 4.4 | 6.1 | 38.6 | 11"
+  - id: "x-014"
+    department: "cross"
+    language: tr
+    type: "multi-hop"
+    difficulty: medium
+    question: "IST-1 tamamen kaybedilirse sistemler hangi sahaya taşınır ve o sahada envantere göre kaç sunucu var?"
+    answer: "ANK-DR1; 18"
+    expected_documents: ["Yedekleme_ve_Felaket_Kurtarma_Plani.docx", "BT_Varlik_Envanteri_2026.xlsx"]
+    evidence:
+      - document: "Yedekleme_ve_Felaket_Kurtarma_Plani.docx"
+        quote: "Testte IST-1'in tamamen kaybedildiği varsayılır ve üretim trafiği ANK-DR1'e taşınır."
+      - document: "BT_Varlik_Envanteri_2026.xlsx"
+        quote: "Sunucu | ANK-DR1 (Ankara) | 18 | Felaket kurtarma sahası"
+  - id: "x-n01"
+    department: "cross"
+    language: tr
+    type: "negative/unanswerable"
+    difficulty: medium
+    question: "Nebula'nın Singapur ofisi ne zaman açılacak?"
+    answer: null
+    expected_documents: []
+    evidence: []
+    absent_terms: ["Singapur", "Singapore"]
+    notes: "Şirketin ofisleri İstanbul, Ankara, İzmir ve Berlin'dedir; planlanan tek yeni ofis Dubai'dir. Singapur hiçbir belgede geçmez."
+  - id: "x-n02"
+    department: "cross"
+    language: en
+    type: "negative/unanswerable"
+    difficulty: medium
+    question: "How large was Nebula's Series C round and who led it?"
+    answer: null
+    expected_documents: []
+    evidence: []
+    absent_terms: ["Series C", "Seri C"]
+    notes: "Only Series A (2021) and Series B (May 2025) exist; the strategic plan says no new round is planned before 2028."
+  - id: "x-n03"
+    department: "cross"
+    language: tr
+    type: "negative/unanswerable"
+    difficulty: medium
+    question: "NebulaCRM arayüzüne Japonca dil desteği hangi sürümle gelecek?"
+    answer: null
+    expected_documents: []
+    evidence: []
+    absent_terms: ["Japonca", "Japanese"]
+    notes: "Yol haritasında Japonca yer almaz; planlanan yeni arayüz dili yalnızca Arapçadır (2027 ilk yarı)."
+  - id: "x-n04"
+    department: "cross"
+    language: en
+    type: "negative/unanswerable"
+    difficulty: easy
+    question: "What is the monthly parking allowance for employees at the Ankara office?"
+    answer: null
+    expected_documents: []
+    evidence: []
+    absent_terms: ["otopark", "parking"]
+    notes: "No document defines a parking benefit."
+  - id: "x-n05"
+    department: "cross"
+    language: tr
+    type: "negative/unanswerable"
+    difficulty: hard
+    question: "Nebula Teknoloji'nin CFO'su kim?"
+    answer: null
+    expected_documents: []
+    evidence: []
+    absent_terms: ["CFO"]
+    notes: "Şirkette CFO unvanı yoktur; finans fonksiyonunu Finans Müdürü Ali Vural yönetir. Doğru cevap bu ayrımı belirtmeli veya kaynakta CFO bulunmadığını söylemelidir."
+  - id: "x-n06"
+    department: "cross"
+    language: tr
+    type: "negative/unanswerable"
+    difficulty: hard
+    question: "Yönetim Kurulu'nun onayladığı 2027 bütçesinde toplam gelir hedefi kaç TL?"
+    answer: null
+    expected_documents: []
+    evidence: []
+    notes: "2027 bütçesi henüz onaylanmadı: 24 Eylül 2026 toplantısında yalnızca %45 büyüme çerçevesi kabul edildi, taslak 10 Aralık 2026 toplantısında sunulacak. Tuzak soru — 2026 bütçesi (742,0 milyon TL) cevap olarak verilmemeli."

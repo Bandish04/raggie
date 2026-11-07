@@ -1,0 +1,40 @@
+# Non-secret runtime config shared by all services (envFrom). Service DNS names
+# resolve within the raggie namespace.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: raggie-config
+data:
+  RAGGIE_ENV: "production"
+  # Any OpenAI-compatible /v1 endpoint (vLLM, Ollama, a managed provider, ...).
+  LLMAAS_BASE_URL: "https://llm.example.com/v1"
+  LLMAAS_CHAT_MODEL: "gpt-oss-120b"
+  # Empty keeps legacy single-provider mode. Set to the JSON registry documented
+  # in .env.example to route canonical ids across local/managed providers.
+  LLM_MODEL_PROFILES_JSON: ""
+  REASONING_MODELS: "gpt-oss-120b"
+  EMBEDDINGS_BASE_URL: "http://embeddings:8002/v1"
+  EMBEDDING_DIM: "1024"
+  RETRIEVE_CANDIDATE_K: "80"
+  RETRIEVE_CONTEXT_K: "12"
+  RETRIEVE_MAX_CHUNKS_PER_DOCUMENT: "3"
+  RERANK_ENABLED: "true"
+  RERANK_CANDIDATE_K: "12"
+  QDRANT_URL: "http://qdrant:6333"
+  REDIS_URL: "redis://redis:6379"
+  POSTGRES_HOST: "postgres"
+  POSTGRES_PORT: "5432"
+  POSTGRES_DB: "raggie"
+  POSTGRES_USER: "raggie"
+  # S3-compatible object store (SeaweedFS in this base; any S3 endpoint works).
+  MINIO_ENDPOINT: "objectstore:9000"
+  MINIO_BUCKET: "raggie-uploads"
+  EDGE_URL: "http://edge:8080"
+  CONTROL_PLANE_URL: "http://control-plane:8000"
+  WIDGET_EMBED_BASE_URL: "http://edge:8080"
+  WIDGET_STATIC_DIR: "/app/widget"
+# Secrets are NOT defined in the base: every service refuses to start with
+# placeholder secrets outside RAGGIE_ENV=development. The dev overlay generates
+# throwaway development values; for production create `raggie-secrets` yourself
+# (see deploy/k8s/README.md: kubectl create secret / External Secrets / Sealed
+# Secrets) before applying the prod overlay.

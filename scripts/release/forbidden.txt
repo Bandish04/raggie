@@ -1,0 +1,22 @@
+# Strings and paths that must never ship in a release (scripts/release-preflight.sh).
+# One rule per line, tab-separated: KIND<TAB>PATTERN<TAB>REASON
+#   content  extended regex (grep -E), matched against every shippable file
+#   path     glob matched against the repo-relative path of every shippable file
+# Shippable = what git tracks plus untracked files .gitignore does not exclude.
+# This file is never scanned against itself.
+content	45\.145\.22\.74	the live server's IP address (private deployment detail)
+content	[Bb]ulutistan	a hosting provider name from the private deployment
+content	admin@raggie\.test	hard-coded demo admin login; use generated credentials
+content	(admin|password|changeme)123	weak default password
+content	PRD §	internal product-requirements references; link public docs instead
+content	TODO\(security-email\)	SECURITY.md needs the real security contact address
+content	TODO\(conduct-email\)	CODE_OF_CONDUCT.md needs the real enforcement contact address
+content	TODO\(release-date\)	CHANGELOG.md release date placeholder
+content	/Users/[^/[:space:]]+/(Documents|Desktop|Downloads|Library|Projects|src)/	a developer machine's local path
+content	alicangunduz/Documents	a developer machine's local path
+content	raggie\.dev	a domain the project does not own
+path	internal/*	private operator runbooks (gitignored; must stay out of the repo)
+path	CLAUDE.md	private agent context with deployment details
+path	*/CLAUDE.md	private agent context with deployment details
+path	CC-Session-Logs/*	private session logs
+path	*/CC-Session-Logs/*	private session logs

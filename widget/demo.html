@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Raggie widget — embed demo</title>
+    <style>
+      body { font-family: system-ui, sans-serif; margin: 0; padding: 48px; color: #1a1f2b; }
+      h1 { font-size: 22px; }
+      code { background: #f1f2f6; padding: 2px 6px; border-radius: 6px; }
+    </style>
+  </head>
+  <body>
+    <h1>Host page (simulated customer site)</h1>
+    <p>
+      The floating chat button bottom-right is the Raggie external widget,
+      loaded by a single <code>&lt;script&gt;</code> tag and fully isolated in a
+      Shadow DOM. Replace <code>WORKSPACE_ID</code> below (and the origin, if your
+      front door is not <code>http://localhost</code>).
+    </p>
+    <p>
+      This page's CSS cannot leak into the widget and vice-versa. The widget only
+      talks to the widget paths of the front door; the admin surface is
+      unreachable from here.
+    </p>
+
+    <!-- Embed snippet. The origin is the Caddy front door (http://localhost
+         locally, https://<RAGGIE_DOMAIN> in production), which routes the widget
+         paths to the edge. For debugging without Caddy, the edge's loopback port
+         works too: http://localhost:8080/widgets/embed.js?id=WORKSPACE_ID -->
+    <script src="http://localhost/widgets/embed.js?id=WORKSPACE_ID"></script>
+  </body>
+</html>

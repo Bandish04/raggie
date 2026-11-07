@@ -1,0 +1,108 @@
+# A4 at the network layer (ARCHITECTURE §9): a default-deny baseline plus
+# explicit allow-lists. The decisive rule is allow-control-plane-ingress, which
+# admits the admin API ONLY from the web app and the admin ingress — the public
+# edge has no entry, so /api/v1/admin/* is unroutable from the chat surface even
+# if app-layer checks were bypassed.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-ingress
+spec:
+  podSelector: {}
+  policyTypes: [Ingress]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-edge-ingress
+spec:
+  podSelector:
+    matchLabels: { app.kubernetes.io/name: edge }
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels: { kubernetes.io/metadata.name: ingress-nginx }
+        - podSelector:
+            matchLabels: { app.kubernetes.io/name: web }
+        # Runs scheduled tasks via /api/v1/internal/run-task (INTERNAL_API_SECRET);
+        # that path is not routed by the public ingress.
+        - podSelector:
+            matchLabels: { app.kubernetes.io/name: scheduler-worker }
+      ports:
+        - { protocol: TCP, port: 8080 }
+    # Prometheus scrapes the internal metrics listener only.
+    - from:
+        - namespaceSelector:
+            matchLabels: { kubernetes.io/metadata.name: observability }
+      ports:
+        - { protocol: TCP, port: 9090 }
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-control-plane-ingress
+spec:
+  podSelector:
+    matchLabels: { app.kubernetes.io/name: control-plane }
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        # Admin app + admin ingress only. The edge is deliberately absent.
+        - podSelector:
+            matchLabels: { app.kubernetes.io/name: web }
+        - namespaceSelector:
+            matchLabels: { kubernetes.io/metadata.name: ingress-nginx }
+      ports:
+        - { protocol: TCP, port: 8000 }
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-web-ingress
+spec:
+  podSelector:
+    matchLabels: { app.kubernetes.io/name: web }
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels: { kubernetes.io/metadata.name: ingress-nginx }
+      ports:
+        - { protocol: TCP, port: 3000 }
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-embeddings-ingress
+spec:
+  podSelector:
+    matchLabels: { app.kubernetes.io/name: embeddings }
+  policyTypes: [Ingress]
+  ingress:
+    # Callers of the gateway: edge (query embeddings + rerank), ingestion-worker
+    # (passage embeddings) and control-plane (GET /v1/info for the embeddings
+    # profile). The eval and scheduler workers never call it.
+    - from:
+        - podSelector: { matchLabels: { app.kubernetes.io/name: edge } }
+        - podSelector: { matchLabels: { app.kubernetes.io/name: ingestion-worker } }
+        - podSelector: { matchLabels: { app.kubernetes.io/name: control-plane } }
+      ports:
+        - { protocol: TCP, port: 8002 }
+---
+# Data plane: reachable only from within the raggie namespace (any app pod).
+# Edge legitimately uses Postgres/Qdrant/Valkey; this is not the A4 boundary.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-datastores-ingress
+spec:
+  podSelector:
+    matchExpressions:
+      - key: app.kubernetes.io/name
+        operator: In
+        values: [postgres, qdrant, valkey, objectstore]
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector: {} # any pod in the raggie namespace

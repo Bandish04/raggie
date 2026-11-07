@@ -1,0 +1,14 @@
+{{- if .Values.edge.enabled }}
+# The external widget loader, mounted read-only on the edge at /app/widget
+# (served at /widgets/). files/widget/embed.js is a copy of widget/embed.js;
+# scripts/ha/sync-widget.sh refreshes it and CI fails on drift.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "raggie.fullname" . }}-widget
+  labels:
+    {{- include "raggie.labels" . | nindent 4 }}
+data:
+  embed.js: |-
+{{ .Files.Get "files/widget/embed.js" | indent 4 }}
+{{- end }}

@@ -1,0 +1,48 @@
+# Code owners. Branch protection's "Require review from Code Owners" makes the
+# owner's approval mandatory for every change; the explicit entries below mark
+# the security-sensitive paths (auth, authorization, schema, CI, deployment,
+# installer) so they stay owner-reviewed even when more maintainers are added
+# to the catch-all. Later lines win, so keep `*` first.
+*                                                    @alicangunduz
+
+# Authentication, sessions, SSO/SCIM, authorization policy
+/services/control-plane/raggie_control_plane/auth/          @alicangunduz
+/services/control-plane/raggie_control_plane/authz.py       @alicangunduz
+/services/control-plane/raggie_control_plane/security.py    @alicangunduz
+/services/control-plane/raggie_control_plane/api/auth.py    @alicangunduz
+/services/control-plane/raggie_control_plane/api/deps.py    @alicangunduz
+/services/control-plane/raggie_control_plane/api/sso.py     @alicangunduz
+/services/control-plane/raggie_control_plane/api/scim.py    @alicangunduz
+/services/control-plane/raggie_control_plane/config.py      @alicangunduz
+/services/control-plane/tests/security/                     @alicangunduz
+/services/edge/internal/widgetauth/                         @alicangunduz
+/services/edge/internal/config/                             @alicangunduz
+/services/edge/internal/outboundhttp/                       @alicangunduz
+/services/edge/internal/httpserver/authz_matrix_test.go     @alicangunduz
+/services/embeddings/raggie_embeddings/providers/auth.py    @alicangunduz
+/web/proxy.ts                                               @alicangunduz
+/web/lib/session.ts                                         @alicangunduz
+/web/lib/security/                                          @alicangunduz
+/tests/security/                                            @alicangunduz
+/.zap/                                                      @alicangunduz
+
+# Database schema (control-plane owns every migration)
+/services/control-plane/migrations/                         @alicangunduz
+
+# Service contracts shared across languages
+/contracts/                                                 @alicangunduz
+
+# CI/CD, supply chain, repository settings
+/.github/                                                   @alicangunduz
+
+# Deployment, installer and their secrets handling
+/deploy/                                                    @alicangunduz
+/web/public/install.sh                                      @alicangunduz
+/scripts/ha/                                                @alicangunduz
+/.env.example                                               @alicangunduz
+/.env.embeddings.example                                    @alicangunduz
+
+# Security policy and licensing
+/SECURITY.md                                                @alicangunduz
+/LICENSE                                                    @alicangunduz
+/THIRD_PARTY_NOTICES.md                                     @alicangunduz

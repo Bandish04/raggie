@@ -1,0 +1,95 @@
+{{- if .Values.keda.enabled }}
+{{- $root := . -}}
+{{- $k := .Values.keda -}}
+{{- $sentinel := ne (include "raggie.sentinelAddrs" .) "" -}}
+{{- if and .Values.valkey.auth (or $k.ingestion.enabled $k.eval.enabled) }}
+apiVersion: keda.sh/v1alpha1
+kind: TriggerAuthentication
+metadata:
+  name: {{ include "raggie.fullname" . }}-valkey
+  labels:
+    {{- include "raggie.labels" . | nindent 4 }}
+spec:
+  secretTargetRef:
+    - parameter: password
+      name: {{ include "raggie.appSecretName" . }}
+      key: REDIS_PASSWORD
+    {{- if $sentinel }}
+    - parameter: sentinelPassword
+      name: {{ include "raggie.appSecretName" . }}
+      key: REDIS_PASSWORD
+    {{- end }}
+{{- end }}
+{{- if and $k.edge.enabled .Values.edge.enabled }}
+{{- $sel := dict "root" $root "component" "edge" }}
+---
+# Scale the edge on in-flight SSE streams (raggie_edge_active_streams).
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: {{ include "raggie.componentName" $sel }}
+  labels:
+    {{- include "raggie.componentLabels" $sel | nindent 4 }}
+spec:
+  scaleTargetRef:
+    name: {{ include "raggie.componentName" $sel }}
+  minReplicaCount: {{ $k.edge.minReplicas }}
+  maxReplicaCount: {{ $k.edge.maxReplicas }}
+  pollingInterval: {{ $k.pollingInterval }}
+  cooldownPeriod: {{ $k.cooldownPeriod }}
+  advanced:
+    horizontalPodAutoscalerConfig:
+      behavior:
+        scaleDown:
+          stabilizationWindowSeconds: 300
+  triggers:
+    - type: prometheus
+      metadata:
+        serverAddress: {{ $k.prometheusServerAddress | quote }}
+        query: sum(raggie_edge_active_streams{namespace="{{ $root.Release.Namespace }}"})
+        threshold: {{ $k.edge.activeStreamsPerReplica | quote }}
+    - type: cpu
+      metricType: Utilization
+      metadata:
+        value: {{ .Values.edge.hpa.targetCPUUtilizationPercentage | quote }}
+{{- end }}
+{{- range $role, $spec := dict "ingestion" (dict "component" "ingestion-worker" "stream" "raggie.document.uploaded" "group" "ingestion-workers") "eval" (dict "component" "eval-worker" "stream" "raggie.chat.completed" "group" "eval-workers") }}
+{{- $kr := index $k $role }}
+{{- if and $kr.enabled (index $root.Values.workers $role).enabled }}
+{{- $sel := dict "root" $root "component" $spec.component }}
+---
+# Scale on consumer-group lag of the worker's stream.
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: {{ include "raggie.componentName" $sel }}
+  labels:
+    {{- include "raggie.componentLabels" $sel | nindent 4 }}
+spec:
+  scaleTargetRef:
+    name: {{ include "raggie.componentName" $sel }}
+  minReplicaCount: {{ $kr.minReplicas }}
+  maxReplicaCount: {{ $kr.maxReplicas }}
+  pollingInterval: {{ $k.pollingInterval }}
+  cooldownPeriod: {{ $k.cooldownPeriod }}
+  triggers:
+    {{- if $sentinel }}
+    - type: redis-sentinel-streams
+      metadata:
+        addresses: {{ include "raggie.sentinelAddrs" $root | quote }}
+        sentinelMaster: {{ include "raggie.sentinelMaster" $root | quote }}
+    {{- else }}
+    - type: redis-streams
+      metadata:
+        address: "{{ include "raggie.redisHost" $root }}:6379"
+    {{- end }}
+        stream: {{ $spec.stream | quote }}
+        consumerGroup: {{ $spec.group | quote }}
+        lagCount: {{ $kr.lagPerReplica | quote }}
+      {{- if $root.Values.valkey.auth }}
+      authenticationRef:
+        name: {{ include "raggie.fullname" $root }}-valkey
+      {{- end }}
+{{- end }}
+{{- end }}
+{{- end }}

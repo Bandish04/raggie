@@ -1,0 +1,40 @@
+# single profile: dev / demo / evaluation on one node.
+# Everything in-chart, one replica each, throwaway generated secrets.
+#   helm install raggie deploy/helm/raggie -n raggie --create-namespace \
+#     -f deploy/helm/raggie/values-single.yaml
+profile: single
+
+secrets:
+  generateDevSecret: true
+
+topologySpread:
+  enabled: false
+
+postgresql:
+  mode: internal
+valkey:
+  mode: standalone
+  auth: true
+vectordb:
+  mode: single
+qdrant:
+  enabled: false
+s3:
+  mode: seaweedfs
+
+edge:
+  replicas: 1
+controlPlane:
+  replicas: 1
+web:
+  replicas: 1
+embeddings:
+  replicas: 1
+workers:
+  ingestion: { replicas: 1 }
+  eval: { replicas: 1 }
+  scheduler: { replicas: 1 }
+
+config:
+  cookieSecure: false
+  enableHsts: false

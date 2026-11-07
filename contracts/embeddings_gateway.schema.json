@@ -1,0 +1,178 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/alicangunduz/raggie/blob/main/contracts/embeddings_gateway.schema.json",
+  "title": "Raggie embeddings gateway contract",
+  "description": "Wire contract of services/embeddings (the single internal embedding gateway) shared by the Go edge, the Python workers and the control-plane tests. All endpoints live under {EMBEDDINGS_BASE_URL} (e.g. http://embeddings:8002/v1). When the gateway requires auth (default in cloud mode) every /v1/* call needs 'Authorization: Bearer $INTERNAL_API_SECRET'; /healthz, /readyz and /metrics are open. Additive fields may appear in any response; clients MUST ignore unknown fields. Collections: the legacy profile (local intfloat/multilingual-e5-large, dim 1024, E5 prefixes, no extra JSON; fingerprint 2872ae6a) keeps 'raggie_chunks_d1024'; every other profile is 'raggie_chunks_d{dim}_{fingerprint}'. Callers MUST use the 'collection' the gateway returns instead of deriving it from the vector length, and MUST treat a fingerprint different from the one their data was indexed with as a terminal mismatch (re-embed required).",
+  "$defs": {
+    "fingerprint": {
+      "description": "sha256 of the canonical JSON {provider, model, dim, query_prefix, passage_prefix, request_extra, query_extra, passage_extra} (sorted keys, no whitespace), first 8 hex chars. Upstream URL and API key are excluded.",
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}$"
+    },
+    "collection": {
+      "description": "Qdrant collection for vectors of this profile.",
+      "type": "string",
+      "pattern": "^raggie_chunks_d[0-9]+(_[0-9a-f]{8})?$"
+    },
+    "sparseVector": {
+      "type": "object",
+      "required": ["indices", "values"],
+      "properties": {
+        "indices": {"type": "array", "items": {"type": "integer", "minimum": 0}},
+        "values": {"type": "array", "items": {"type": "number"}}
+      }
+    },
+    "EmbeddingsRequest": {
+      "description": "POST /v1/embeddings (OpenAI-compatible). input_type 'query' or 'passage' (default; any other value is treated as passage) selects prefixes / extra JSON.",
+      "type": "object",
+      "required": ["input"],
+      "properties": {
+        "input": {"oneOf": [{"type": "string"}, {"type": "array", "items": {"type": "string"}}]},
+        "model": {"type": ["string", "null"], "description": "Accepted for OpenAI compatibility; ignored."},
+        "input_type": {"type": "string", "default": "passage"}
+      }
+    },
+    "EmbeddingsResponse": {
+      "type": "object",
+      "required": ["object", "data", "model", "usage", "collection", "fingerprint"],
+      "properties": {
+        "object": {"const": "list"},
+        "data": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["object", "index", "embedding"],
+            "properties": {
+              "object": {"const": "embedding"},
+              "index": {"type": "integer", "minimum": 0},
+              "embedding": {"type": "array", "items": {"type": "number"}, "minItems": 1}
+            }
+          }
+        },
+        "model": {"type": "string"},
+        "usage": {
+          "type": "object",
+          "required": ["prompt_tokens", "total_tokens"],
+          "properties": {
+            "prompt_tokens": {"type": "integer", "minimum": 0},
+            "total_tokens": {"type": "integer", "minimum": 0}
+          }
+        },
+        "collection": {"$ref": "#/$defs/collection"},
+        "fingerprint": {"$ref": "#/$defs/fingerprint"}
+      }
+    },
+    "SparseRequest": {
+      "description": "POST /v1/sparse — BM25 document vectors (always computed locally).",
+      "type": "object",
+      "required": ["input"],
+      "properties": {
+        "input": {"oneOf": [{"type": "string"}, {"type": "array", "items": {"type": "string"}}]}
+      }
+    },
+    "SparseResponse": {
+      "description": "Empty indices/values when sparse is disabled: index dense-only.",
+      "type": "object",
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "type": "array",
+          "items": {
+            "allOf": [
+              {"$ref": "#/$defs/sparseVector"},
+              {"type": "object", "required": ["index"], "properties": {"index": {"type": "integer", "minimum": 0}}}
+            ]
+          }
+        }
+      }
+    },
+    "QueryRequest": {
+      "description": "POST /v1/query — dense + sparse for ONE search query.",
+      "type": "object",
+      "required": ["query"],
+      "properties": {"query": {"type": "string"}}
+    },
+    "QueryResponse": {
+      "type": "object",
+      "required": ["dense", "sparse", "collection", "fingerprint"],
+      "properties": {
+        "dense": {"type": "array", "items": {"type": "number"}, "minItems": 1},
+        "sparse": {"$ref": "#/$defs/sparseVector"},
+        "collection": {"$ref": "#/$defs/collection"},
+        "fingerprint": {"$ref": "#/$defs/fingerprint"}
+      }
+    },
+    "RerankRequest": {
+      "description": "POST /v1/rerank.",
+      "type": "object",
+      "required": ["query", "documents"],
+      "properties": {
+        "query": {"type": "string"},
+        "documents": {"type": "array", "items": {"type": "string"}},
+        "top_n": {"type": ["integer", "null"], "minimum": 1}
+      }
+    },
+    "RerankResponse": {
+      "description": "Best-first, truncated to top_n. Score scales differ per provider; rely on the order only. While the reranker is loading/disabled/failing the gateway returns the identity order (still HTTP 200).",
+      "type": "object",
+      "required": ["results"],
+      "properties": {
+        "results": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["index", "score"],
+            "properties": {
+              "index": {"type": "integer", "minimum": 0},
+              "score": {"type": "number"}
+            }
+          }
+        }
+      }
+    },
+    "InfoResponse": {
+      "description": "GET /v1/info — the active embedding profile. dense_host/rerank_host are the hostnames document text is sent to (null = stays on this server).",
+      "type": "object",
+      "required": ["provider", "model", "dim", "fingerprint", "collection", "sparse_model", "reranker", "egress"],
+      "properties": {
+        "provider": {"enum": ["local", "openai_compatible"]},
+        "model": {"type": "string"},
+        "dim": {"type": "integer", "minimum": 1},
+        "fingerprint": {"$ref": "#/$defs/fingerprint"},
+        "collection": {"$ref": "#/$defs/collection"},
+        "sparse_model": {"type": ["string", "null"]},
+        "reranker": {
+          "type": "object",
+          "required": ["provider", "model"],
+          "properties": {
+            "provider": {"enum": ["local", "cohere", "voyage", "tei", "none"]},
+            "model": {"type": ["string", "null"]}
+          }
+        },
+        "egress": {
+          "type": "object",
+          "required": ["dense_host", "rerank_host"],
+          "properties": {
+            "dense_host": {"type": ["string", "null"]},
+            "rerank_host": {"type": ["string", "null"]}
+          }
+        }
+      }
+    },
+    "ReadyResponse": {
+      "description": "GET /readyz — 200 {status: ready}; 503 {status: loading} before the first probe, 503 {status: not_ready, reason} when the probe failed (e.g. dimension mismatch). Re-probed every 30s until it passes.",
+      "type": "object",
+      "required": ["status"],
+      "properties": {
+        "status": {"enum": ["ready", "loading", "not_ready"]},
+        "reason": {"type": "string"}
+      }
+    },
+    "ErrorResponse": {
+      "description": "Non-2xx body. 401: missing/invalid internal bearer. 429 (+ Retry-After header, seconds): the cloud upstream is rate-limiting/unavailable — back off and retry (passages). 502: the upstream rejected the request or answered malformed (not retryable). 503: query upstream unavailable.",
+      "type": "object",
+      "required": ["detail"],
+      "properties": {"detail": {"type": "string"}}
+    }
+  }
+}

@@ -1,0 +1,201 @@
+{
+  "_comment": "Synthetic TR+EN reranker benchmark for scripts/bench_rerank.py. Fictional company 'Örnek A.Ş.' / 'Example Corp'; no real or internal documents. Each topic has passages that are hard negatives for each other (same subject, different facts). rel: 2 = answers the query, 1 = partially relevant, absent = not relevant. Candidates for a query are 24 passages of the same language: its topic's passages plus deterministic picks from other topics.",
+  "topics": [
+    {
+      "id": "tr-izin",
+      "lang": "tr",
+      "passages": {
+        "tr-izin-1": "Yıllık ücretli izin süreleri kıdeme göre belirlenir. Bir yıldan beş yıla kadar (beş yıl dahil) kıdemi olan çalışanlara yılda 14 iş günü, beş yıldan fazla on beş yıldan az kıdemi olanlara 20 iş günü, on beş yıl ve üzeri kıdemi olanlara ise 26 iş günü yıllık izin verilir. Elli yaş ve üzerindeki çalışanların izni 20 iş gününden az olamaz.",
+        "tr-izin-2": "İzin talepleri İnsan Kaynakları portalı üzerinden, planlanan izin başlangıcından en az on iş günü önce oluşturulmalıdır. Talep önce birim yöneticisinin, ardından beş iş gününü aşan izinlerde bölüm direktörünün onayına düşer. Onaylanmayan talepler için çalışana gerekçeli bildirim gönderilir.",
+        "tr-izin-3": "Kullanılmayan yıllık izinler bir sonraki takvim yılına devredilir; ancak devreden izin toplamı 30 iş gününü aşamaz. İş sözleşmesinin sona ermesi halinde kullanılmamış izin günlerinin ücreti, son brüt ücret üzerinden hesaplanarak çıkış bordrosuyla ödenir.",
+        "tr-izin-4": "Doğum izni, doğumdan önce sekiz ve doğumdan sonra sekiz hafta olmak üzere toplam on altı haftadır. Babalık izni beş iş günü, evlilik izni üç iş günü, birinci derece yakının vefatında ise üç iş günü ücretli mazeret izni kullanılır. Mazeret izinleri yıllık izinden düşülmez."
+      },
+      "queries": [
+        {"q": "Altı yıllık kıdemim var, yılda kaç gün izin kullanabilirim?", "rel": {"tr-izin-1": 2}},
+        {"q": "İşten ayrılırken kullanmadığım izinlerin parası ödenir mi?", "rel": {"tr-izin-3": 2, "tr-izin-1": 1}}
+      ]
+    },
+    {
+      "id": "tr-masraf",
+      "lang": "tr",
+      "passages": {
+        "tr-masraf-1": "İş seyahatlerinde konaklama için kişi başı gecelik üst limit İstanbul, Ankara ve İzmir'de 3.500 TL, diğer illerde 2.500 TL'dir. Limitin üzerindeki konaklamalar ancak etkinlik veya fuar dönemlerinde, seyahat öncesinde alınmış direktör onayıyla kabul edilir.",
+        "tr-masraf-2": "Masraf beyanları harcamanın yapıldığı ayı izleyen ayın beşinci iş gününe kadar masraf sistemine girilmelidir. Her kalem için e-fatura veya fiş görseli eklenmesi zorunludur; belgesiz harcamalar geri ödenmez. Onaylanan masraflar takip eden maaş ödemesiyle birlikte hesaba yatırılır.",
+        "tr-masraf-3": "Şehir içi ulaşımda toplu taşıma esastır. Taksi kullanımı yalnızca gece 22.00 ile 06.00 arasında, ağır ekipman taşınırken veya toplu taşımanın bulunmadığı güzergâhlarda geri ödenir. Kişisel araç kullanımında kilometre başına 6 TL yakıt ve amortisman bedeli ödenir.",
+        "tr-masraf-4": "Müşteri ağırlama giderleri kişi başı 1.200 TL ile sınırlıdır ve davetli müşteri ile katılımcı çalışanların adları masraf açıklamasına yazılmalıdır. Alkollü içecek bedelleri hiçbir koşulda şirket tarafından karşılanmaz."
+      },
+      "queries": [
+        {"q": "Ankara'da otelde gecelik en fazla ne kadar harcayabilirim?", "rel": {"tr-masraf-1": 2}},
+        {"q": "Gece yarısı taksiyle eve dönersem ücreti geri alabilir miyim?", "rel": {"tr-masraf-3": 2}}
+      ]
+    },
+    {
+      "id": "tr-uzaktan",
+      "lang": "tr",
+      "passages": {
+        "tr-uzaktan-1": "Hibrit çalışma modelinde ekipler haftada en az üç gün ofiste bulunur. Ofis günleri ekip yöneticisi tarafından belirlenir ve takvimde paylaşılır. Salı ve perşembe günleri tüm şirket için ortak ofis günü olarak kabul edilir.",
+        "tr-uzaktan-2": "Uzaktan çalışan personele aylık 750 TL internet ve elektrik desteği bordro üzerinden ödenir. Ek monitör, klavye ve ergonomik sandalye talepleri BT destek portalından iletilir; teslim edilen ekipman şirket demirbaşı olarak kayda alınır.",
+        "tr-uzaktan-3": "Yurt dışından uzaktan çalışma yılda en fazla 20 iş günü ile sınırlıdır ve vergi ile sosyal güvenlik mevzuatı nedeniyle İnsan Kaynakları ile Hukuk biriminin önceden yazılı onayını gerektirir. Onaysız yurt dışı çalışma disiplin sürecine konu olabilir.",
+        "tr-uzaktan-4": "Uzaktan çalışırken şirket verilerine yalnızca şirket VPN'i ve yönetilen cihazlar üzerinden erişilebilir. Halka açık Wi-Fi ağlarında VPN bağlantısı kurulmadan e-posta veya dosya sistemine bağlanmak bilgi güvenliği politikasının ihlalidir."
+      },
+      "queries": [
+        {"q": "Bir ay boyunca yurt dışından uzaktan çalışabilir miyim?", "rel": {"tr-uzaktan-3": 2}},
+        {"q": "Evden çalışanlara internet parası veriliyor mu?", "rel": {"tr-uzaktan-2": 2}}
+      ]
+    },
+    {
+      "id": "tr-bilgi-guvenligi",
+      "lang": "tr",
+      "passages": {
+        "tr-bg-1": "Kurumsal hesap parolaları en az 14 karakter uzunluğunda olmalı ve büyük harf, küçük harf, rakam ile özel karakter içermelidir. Parolalar 180 günde bir yenilenir; son on iki parola tekrar kullanılamaz. Tüm hesaplarda çok faktörlü kimlik doğrulama zorunludur.",
+        "tr-bg-2": "Şüpheli bir e-posta aldığınızda bağlantılara tıklamayın ve ekleri açmayın. E-postayı Outlook'taki 'Oltalama Bildir' düğmesiyle Siber Güvenlik Operasyon Merkezi'ne iletin. Yanlışlıkla bağlantıya tıkladıysanız cihazı ağdan ayırıp 7/24 güvenlik hattını arayın.",
+        "tr-bg-3": "Kişisel verilerin bulunduğu dosyalar yalnızca şifreli kurumsal paylaşım alanlarında saklanabilir. Kişisel veri içeren dosyaların USB bellek, kişisel bulut hesabı veya kişisel e-posta ile dışarı aktarılması yasaktır ve veri sızıntısı önleme sistemi tarafından engellenir.",
+        "tr-bg-4": "Kaybolan veya çalınan dizüstü bilgisayar ve telefonlar en geç iki saat içinde BT destek hattına bildirilmelidir. Bildirim sonrası cihaz uzaktan kilitlenir ve gerekirse verileri silinir; emniyet tutanağı İnsan Kaynakları'na iletilir."
+      },
+      "queries": [
+        {"q": "Oltalama olduğunu düşündüğüm bir maile tıkladım, ne yapmalıyım?", "rel": {"tr-bg-2": 2}},
+        {"q": "Parolam kaç karakter olmalı ve ne sıklıkla değiştirmeliyim?", "rel": {"tr-bg-1": 2}}
+      ]
+    },
+    {
+      "id": "tr-satinalma",
+      "lang": "tr",
+      "passages": {
+        "tr-sa-1": "50.000 TL'ye kadar olan alımlarda birim yöneticisinin onayı yeterlidir. 50.000 TL ile 500.000 TL arasındaki alımlar için en az üç tedarikçiden teklif alınması ve satın alma komitesinin onayı gerekir. 500.000 TL üzerindeki alımlar genel müdür onayına sunulur.",
+        "tr-sa-2": "Yeni tedarikçi kaydı için vergi levhası, imza sirküleri, ticaret sicil gazetesi ve banka hesap bilgileri tedarikçi portalına yüklenir. Kayıt, uyum biriminin yaptırım listesi kontrolünden sonra en geç beş iş gününde tamamlanır.",
+        "tr-sa-3": "Tedarikçi faturaları, mal kabul veya hizmet onay kaydı sistemde oluştuktan sonra vadesine göre ödenir. Standart ödeme vadesi fatura tarihinden itibaren 60 gündür; KOBİ statüsündeki tedarikçiler için bu süre 30 gündür.",
+        "tr-sa-4": "Acil durum alımlarında satın alma süreci sonradan tamamlanabilir; ancak alımı yapan birim 48 saat içinde gerekçeli acil alım formunu doldurmak zorundadır. Yılda üçten fazla acil alım yapan birimler iç denetim tarafından incelenir."
+      },
+      "queries": [
+        {"q": "200 bin liralık bir alım için kaç teklif almam gerekiyor?", "rel": {"tr-sa-1": 2}},
+        {"q": "Küçük işletme tedarikçilere faturalar kaç günde ödeniyor?", "rel": {"tr-sa-3": 2}}
+      ]
+    },
+    {
+      "id": "tr-yan-haklar",
+      "lang": "tr",
+      "passages": {
+        "tr-yh-1": "Tamamlayıcı özel sağlık sigortası çalışanı, eşini ve 25 yaşını doldurmamış çocuklarını kapsar. Poliçe yatarak tedavide yüzde yüz, ayakta tedavide yılda 12 başvuru ile sınırlı olmak üzere yüzde seksen teminat sağlar. Diş tedavileri kapsam dışındadır.",
+        "tr-yh-2": "Yemek kartına iş günü başına 330 TL yüklenir. Bakiye her ayın ilk iş günü güncellenir ve kullanılmayan tutar bir sonraki aya devreder. Kart kaybında yeni kart İnsan Kaynakları'ndan talep edilir; kalan bakiye yeni karta aktarılır.",
+        "tr-yh-3": "Bireysel emeklilik sistemine katılan çalışanların katkı payının yüzde beşine kadar olan kısmına şirket aynı tutarda katkı yapar. Şirket katkısı üç yıllık kıdem tamamlandığında çalışanın hakkı haline gelir.",
+        "tr-yh-4": "Spor salonu üyeliği için aylık 1.000 TL'ye kadar destek sağlanır. Destekten yararlanmak için üyelik faturası her ay masraf sistemine yüklenmelidir; yıllık peşin ödenen üyeliklerde tutar on iki aya bölünerek ödenir."
+      },
+      "queries": [
+        {"q": "Özel sağlık sigortası çocuklarımı da kapsıyor mu?", "rel": {"tr-yh-1": 2}},
+        {"q": "Yemek kartındaki para ay sonunda yanar mı?", "rel": {"tr-yh-2": 2}}
+      ]
+    },
+    {
+      "id": "tr-musteri",
+      "lang": "tr",
+      "passages": {
+        "tr-mh-1": "Kritik öncelikli destek talepleri için ilk yanıt süresi 30 dakika, çözüm hedefi 4 saattir. Yüksek öncelikli taleplerde ilk yanıt 2 saat, çözüm 1 iş günü; normal öncelikli taleplerde ilk yanıt 1 iş günü, çözüm 5 iş günüdür.",
+        "tr-mh-2": "Ürün iadeleri teslim tarihinden itibaren 14 gün içinde, ürün kullanılmamış ve orijinal ambalajında olmak koşuluyla kabul edilir. İade onaylandıktan sonra ödeme, ödemenin yapıldığı yönteme 10 iş günü içinde iade edilir.",
+        "tr-mh-3": "Müşteri şikâyetleri çağrı merkezi, e-posta ve web formu üzerinden kayda alınır. Her şikâyete otomatik bir takip numarası verilir ve müşteri, şikâyet durumunu web sitesindeki takip ekranından sorgulayabilir. Şikâyetler en geç 3 iş günü içinde yanıtlanır.",
+        "tr-mh-4": "Çağrı merkezi hafta içi 08.00-22.00, hafta sonu 09.00-18.00 saatleri arasında hizmet verir. Resmî tatillerde yalnızca kritik arıza hattı açıktır. Mesai dışında web formu ile iletilen talepler bir sonraki iş günü işleme alınır."
+      },
+      "queries": [
+        {"q": "Kritik bir arıza bildirdim, ne kadar sürede dönüş yapılır?", "rel": {"tr-mh-1": 2}},
+        {"q": "Aldığım ürünü kaç gün içinde iade edebilirim?", "rel": {"tr-mh-2": 2}}
+      ]
+    },
+    {
+      "id": "tr-isg",
+      "lang": "tr",
+      "passages": {
+        "tr-isg-1": "Yangın alarmı duyulduğunda asansör kullanılmadan en yakın acil çıkıştan binayı terk edin ve otoparktaki toplanma alanına gidin. Kat sorumluları katı son terk eden kişilerdir ve toplanma alanında yoklama alır.",
+        "tr-isg-2": "İş kazaları ve ramak kala olaylar, olay anından itibaren 24 saat içinde İSG portalına bildirilmelidir. Yaralanmalı iş kazaları ayrıca derhal iş güvenliği uzmanına ve birim yöneticisine telefonla bildirilir.",
+        "tr-isg-3": "Üretim sahasında baret, iş ayakkabısı ve yüksek görünürlüklü yelek kullanımı zorunludur. Kimyasal depolama alanına girişte ek olarak koruyucu gözlük ve nitril eldiven giyilir. Kişisel koruyucu donanımlar depodan imza karşılığı teslim alınır.",
+        "tr-isg-4": "Tüm çalışanlar işe başladıktan sonraki ilk ay içinde temel iş sağlığı ve güvenliği eğitimini tamamlar. Eğitim, az tehlikeli işyerlerinde üç yılda, tehlikeli işyerlerinde iki yılda, çok tehlikeli işyerlerinde ise her yıl yenilenir."
+      },
+      "queries": [
+        {"q": "Yangın alarmı çaldığında nerede toplanmamız gerekiyor?", "rel": {"tr-isg-1": 2}},
+        {"q": "Ramak kala bir olayı ne kadar sürede bildirmeliyim?", "rel": {"tr-isg-2": 2}}
+      ]
+    },
+    {
+      "id": "en-travel",
+      "lang": "en",
+      "passages": {
+        "en-travel-1": "Economy class is the standard for all flights under six hours. Business class may be booked for flights longer than six hours or for overnight flights immediately followed by a customer meeting, provided a vice president approves the booking in advance.",
+        "en-travel-2": "The daily meal allowance is 60 USD for domestic travel and 85 USD for international travel. Meals that are already included in a conference fee or hotel rate must be deducted from the allowance. Receipts are not required for the allowance itself.",
+        "en-travel-3": "All travel must be booked through the corporate travel portal at least 14 days before departure. Bookings made outside the portal are reimbursed only if the fare is at least 10 percent below the portal price for the same itinerary.",
+        "en-travel-4": "Employees travelling to countries rated high risk by the security team must complete the travel risk briefing and register their itinerary with the security desk. Travel to countries rated extreme risk is not permitted without approval from the chief operating officer."
+      },
+      "queries": [
+        {"q": "Can I fly business class on a nine-hour flight?", "rel": {"en-travel-1": 2}},
+        {"q": "How much is the per diem for meals on an international trip?", "rel": {"en-travel-2": 2}}
+      ]
+    },
+    {
+      "id": "en-security",
+      "lang": "en",
+      "passages": {
+        "en-sec-1": "Production database credentials are stored only in the managed secrets vault. Engineers request time-limited access through the access portal; grants expire after eight hours and every session is recorded for audit purposes.",
+        "en-sec-2": "Security incidents are classified into four severity levels. Severity 1 incidents, such as confirmed data exfiltration, require the incident commander to be paged immediately and the data protection officer to be notified within one hour.",
+        "en-sec-3": "All laptops must run the endpoint protection agent and full-disk encryption. Devices that have not checked in with the management server for more than 30 days are automatically blocked from the corporate network until they are re-enrolled.",
+        "en-sec-4": "Third-party vendors that process customer data must pass a security assessment before onboarding and every two years thereafter. The assessment covers encryption at rest, access control, incident response and sub-processor management."
+      },
+      "queries": [
+        {"q": "Who must be notified within an hour of a confirmed data breach?", "rel": {"en-sec-2": 2}},
+        {"q": "How long does temporary access to production databases last?", "rel": {"en-sec-1": 2}}
+      ]
+    },
+    {
+      "id": "en-onboarding",
+      "lang": "en",
+      "passages": {
+        "en-onb-1": "New employees receive their laptop and badge on the first day from the IT service desk on the ground floor. Accounts are created three working days before the start date, and the temporary password is sent to the personal e-mail address provided in the offer letter.",
+        "en-onb-2": "Every new hire is assigned an onboarding buddy from a different team for the first 90 days. Buddies meet the new hire at least once a week during the first month and help with tools, processes and introductions.",
+        "en-onb-3": "The probation period is three months for individual contributors and six months for people managers. A formal probation review takes place two weeks before the end of the period; the outcome is confirmed in writing.",
+        "en-onb-4": "Mandatory onboarding training covers the code of conduct, information security, data protection and workplace safety. All modules must be completed in the learning platform within the first 30 days of employment."
+      },
+      "queries": [
+        {"q": "How long is the probation period for a team manager?", "rel": {"en-onb-3": 2}},
+        {"q": "When will my accounts be ready before I start?", "rel": {"en-onb-1": 2}}
+      ]
+    },
+    {
+      "id": "en-finance",
+      "lang": "en",
+      "passages": {
+        "en-fin-1": "The fiscal year runs from January 1 to December 31. Departmental budgets for the next year are submitted by September 30 and approved by the finance committee in November; unspent budget does not carry over to the following year.",
+        "en-fin-2": "Capital expenditures above 25,000 USD require a business case with a payback analysis and approval from the chief financial officer. Assets are depreciated on a straight-line basis over their useful life, which is three years for IT hardware.",
+        "en-fin-3": "Customer invoices are issued on the first business day of each month with payment terms of net 30 days. Overdue invoices receive automated reminders after 7, 14 and 30 days, after which the account is escalated to collections.",
+        "en-fin-4": "Monthly closing must be completed by the fifth business day of the following month. Accruals for goods received but not yet invoiced are booked by cost-center owners in the finance system before the close deadline."
+      },
+      "queries": [
+        {"q": "Does leftover department budget roll over into next year?", "rel": {"en-fin-1": 2}},
+        {"q": "Over what period is a new laptop depreciated?", "rel": {"en-fin-2": 2}}
+      ]
+    },
+    {
+      "id": "en-product",
+      "lang": "en",
+      "passages": {
+        "en-prod-1": "The enterprise plan includes single sign-on via SAML and OIDC, SCIM user provisioning, audit log export and a 99.9 percent uptime commitment. Single sign-on is not available on the starter and team plans.",
+        "en-prod-2": "Data is stored in the region selected at account creation. Customers on the enterprise plan can request migration to another region once per contract year; migrations are scheduled within a maintenance window and take up to 48 hours.",
+        "en-prod-3": "API rate limits are 600 requests per minute on the team plan and 3,000 requests per minute on the enterprise plan. Requests over the limit receive HTTP 429 with a Retry-After header indicating when to retry.",
+        "en-prod-4": "Deleted workspaces are retained for 30 days and can be restored by an administrator during that period. After 30 days all workspace data, including backups, is permanently erased within a further 14 days."
+      },
+      "queries": [
+        {"q": "Is SAML single sign-on included in the team plan?", "rel": {"en-prod-1": 2}},
+        {"q": "How long after deletion is workspace data permanently erased?", "rel": {"en-prod-4": 2}}
+      ]
+    },
+    {
+      "id": "en-hr",
+      "lang": "en",
+      "passages": {
+        "en-hr-1": "Performance reviews are held twice a year, in June and December. Each review combines a self-assessment, manager feedback and input from at least two peers; ratings are calibrated across departments before they are shared.",
+        "en-hr-2": "Employees may request flexible working hours after six months of service. Core hours are 10:00 to 15:00, during which everyone is expected to be available for meetings; the remaining hours can be scheduled freely.",
+        "en-hr-3": "Parental leave is 20 weeks fully paid for the primary caregiver and 6 weeks fully paid for the secondary caregiver. Leave can be taken in up to three blocks within the first year after the birth or adoption.",
+        "en-hr-4": "The annual salary review takes place in March. Adjustments are based on performance ratings, market benchmarks and internal equity, and take effect from the April payroll."
+      },
+      "queries": [
+        {"q": "How many weeks of paid parental leave does the secondary caregiver get?", "rel": {"en-hr-3": 2}},
+        {"q": "What are the core hours if I work flexibly?", "rel": {"en-hr-2": 2}}
+      ]
+    }
+  ]
+}

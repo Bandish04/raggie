@@ -1,0 +1,117 @@
+{{- $root := . -}}
+{{- $keda := .Values.keda -}}
+{{- if .Values.edge.enabled }}
+{{- $e := .Values.edge -}}
+{{- $env := include "raggie.envMap" (dict
+  "EDGE_PORT" $e.port
+  "METRICS_ADDR" (printf ":%d" (int $e.metricsPort))
+  "EDGE_SHUTDOWN_DELAY_SECONDS" $e.shutdown.delaySeconds
+  "EDGE_SHUTDOWN_DRAIN_SECONDS" $e.shutdown.drainSeconds
+  "EDGE_TERMINATION_GRACE_SECONDS" $e.shutdown.terminationGraceSeconds
+  "EMBED_QUERY_TIMEOUT_MS" $e.embedQueryTimeoutMs
+  "RERANK_TIMEOUT_MS" $e.rerankTimeoutMs
+  "LLMAAS_RESPONSE_HEADER_TIMEOUT_SECONDS" $e.llmResponseHeaderTimeoutSeconds) -}}
+{{- $env = print $env "\n" (include "raggie.databaseEnv" .) "\n" (include "raggie.redisEnv" .) -}}
+{{- $env = print $env (include "raggie.secretEnv" (dict "root" . "keys" (list "JWT_SECRET" "WIDGET_TOKEN_SECRET" "INTERNAL_API_SECRET" "LLMAAS_API_KEY?" "METRICS_TOKEN?" "QDRANT_API_KEY?" "BRAVE_API_KEY?"))) -}}
+{{- $env = print $env (include "raggie.envMap" $e.env) -}}
+{{- include "raggie.deployment" (dict
+  "root" . "component" "edge" "svc" "edge" "values" $e "image" $e.image
+  "replicas" $e.replicas
+  "autoscaled" (or $e.hpa.enabled (and $keda.enabled $keda.edge.enabled))
+  "ports" (list (dict "name" "http" "port" $e.port) (dict "name" "metrics" "port" $e.metricsPort))
+  "probePort" "http" "readyPath" "/readyz" "livePath" "/healthz"
+  "env" $env
+  "grace" $e.shutdown.terminationGraceSeconds
+  "volumeMounts" "- name: widget\n  mountPath: /app/widget\n  readOnly: true"
+  "volumes" (printf "- name: widget\n  configMap:\n    name: %s-widget" (include "raggie.fullname" .))) }}
+{{- end }}
+{{- if .Values.controlPlane.enabled }}
+{{- $c := .Values.controlPlane -}}
+{{- $env := include "raggie.envMap" (dict
+  "CONTROL_PLANE_PORT" $c.port
+  "RUN_MIGRATIONS_ON_BOOT" (ternary "false" "true" .Values.migrations.enabled)) -}}
+{{- $env = print $env "\n" (include "raggie.databaseEnv" .) "\n" (include "raggie.redisEnv" .) "\n" (include "raggie.s3Env" .) -}}
+{{- $env = print $env (include "raggie.secretEnv" (dict "root" . "keys" (list "JWT_SECRET" "WIDGET_TOKEN_SECRET" "INTERNAL_API_SECRET" "SETUP_TOKEN?" "LLMAAS_API_KEY?" "METRICS_TOKEN?" "QDRANT_API_KEY?" "INTEGRATION_ENC_KEY?" "OIDC_CLIENT_SECRET?" "SCIM_BEARER_TOKEN?"))) -}}
+{{- $env = print $env (include "raggie.envMap" $c.env) -}}
+{{- include "raggie.deployment" (dict
+  "root" . "component" "control-plane" "svc" "control-plane" "values" $c "image" $c.image
+  "replicas" $c.replicas
+  "ports" (list (dict "name" "http" "port" $c.port))
+  "probePort" "http" "readyPath" "/readyz" "livePath" "/healthz"
+  "env" $env) }}
+{{- end }}
+{{- if .Values.web.enabled }}
+{{- $w := .Values.web -}}
+{{- $env := include "raggie.envMap" (merge (dict "PORT" $w.port "HOSTNAME" "0.0.0.0") $w.env) -}}
+{{- include "raggie.deployment" (dict
+  "root" . "component" "web" "svc" "web" "values" $w "image" $w.image
+  "replicas" $w.replicas
+  "ports" (list (dict "name" "http" "port" $w.port))
+  "probePort" "http" "readyPath" "/healthz" "livePath" "/healthz"
+  "env" $env
+  "volumeMounts" "- name: next-cache\n  mountPath: /app/.next/cache"
+  "volumes" "- name: next-cache\n  emptyDir:\n    sizeLimit: 1Gi") }}
+{{- end }}
+{{- if .Values.embeddings.enabled }}
+{{- $m := .Values.embeddings -}}
+{{- $g := .Values.embeddingsGateway -}}
+{{- $gw := dict "EMBEDDINGS_PORT" $m.port "EMBEDDINGS_PROVIDER" $g.provider "RERANKER_PROVIDER" $g.rerankerProvider "EMBEDDING_DIM" $g.dim "EMBEDDINGS_ONNX_THREADS" (include "raggie.onnxThreads" .) "EMBEDDINGS_CACHE_TIMEOUT_SECONDS" $m.cacheTimeoutSeconds -}}
+{{- with $g.model }}{{ $_ := set $gw "EMBEDDINGS_MODEL" . }}{{ end -}}
+{{- with $g.upstreamBaseUrl }}{{ $_ := set $gw "EMBEDDINGS_UPSTREAM_BASE_URL" . }}{{ end -}}
+{{- with $g.requestExtraJson }}{{ $_ := set $gw "EMBEDDINGS_REQUEST_EXTRA_JSON" . }}{{ end -}}
+{{- with $g.queryExtraJson }}{{ $_ := set $gw "EMBEDDINGS_QUERY_EXTRA_JSON" . }}{{ end -}}
+{{- with $g.passageExtraJson }}{{ $_ := set $gw "EMBEDDINGS_PASSAGE_EXTRA_JSON" . }}{{ end -}}
+{{- with $g.rerankerModel }}{{ $_ := set $gw "RERANKER_MODEL" . }}{{ end -}}
+{{- with $g.rerankerUpstreamUrl }}{{ $_ := set $gw "RERANKER_UPSTREAM_URL" . }}{{ end -}}
+{{- with $g.requireAuth | toString }}{{ $_ := set $gw "EMBEDDINGS_REQUIRE_AUTH" . }}{{ end -}}
+{{- $env := include "raggie.envMap" (merge $gw $m.env) -}}
+{{- $env = print $env "\n" (include "raggie.redisEnv" .) -}}
+{{- $env = print $env (include "raggie.secretEnv" (dict "root" . "keys" (list "INTERNAL_API_SECRET"))) -}}
+{{- with $g.existingSecret }}
+{{- $env = print $env (printf "\n- name: EMBEDDINGS_UPSTREAM_API_KEY\n  valueFrom:\n    secretKeyRef:\n      name: %s\n      key: EMBEDDINGS_UPSTREAM_API_KEY\n      optional: true\n- name: RERANKER_UPSTREAM_API_KEY\n  valueFrom:\n    secretKeyRef:\n      name: %s\n      key: RERANKER_UPSTREAM_API_KEY\n      optional: true" . .) -}}
+{{- end }}
+{{- $variant := ternary "local" "slim" (eq $g.provider "local") -}}
+{{- $embImage := dict "repository" $m.image.repository "tag" ($m.image.tag | default (printf "%s-%s" (.Values.image.tag | default .Chart.AppVersion) $variant)) -}}
+{{- include "raggie.deployment" (dict
+  "root" . "component" "embeddings" "svc" "embeddings" "values" $m "image" $embImage
+  "replicas" $m.replicas
+  "autoscaled" $m.hpa.enabled
+  "ports" (list (dict "name" "http" "port" $m.port))
+  "probePort" "http" "readyPath" "/readyz" "livePath" "/healthz"
+  "startupFailureThreshold" 60
+  "env" $env) }}
+{{- end }}
+{{- range $role, $component := dict "ingestion" "ingestion-worker" "eval" "eval-worker" "scheduler" "scheduler" }}
+{{- $wv := index $root.Values.workers $role -}}
+{{- if $wv.enabled }}
+{{- $ws := $root.Values.workers -}}
+{{- $roleEnv := dict "WORKER_ROLE" $role "WORKER_HEALTH_PORT" $ws.healthPort "EMBED_TIMEOUT_SECONDS" $ws.embedTimeoutSeconds "EMBED_MAX_RETRIES" $ws.embedMaxRetries -}}
+{{- if eq $role "eval" }}
+{{- $_ := set $roleEnv "EVAL_LLM_TIMEOUT_SECONDS" $wv.llmTimeoutSeconds -}}
+{{- $_ = set $roleEnv "EVAL_MAX_CONCURRENCY" $wv.maxConcurrency -}}
+{{- else if eq $role "scheduler" }}
+{{- $_ := set $roleEnv "SCHEDULER_TASK_TIMEOUT_SECONDS" $wv.taskTimeoutSeconds -}}
+{{- end }}
+{{- $env := include "raggie.envMap" (merge $roleEnv $wv.env $ws.env) -}}
+{{- $env = print $env "\n" (include "raggie.databaseEnv" $root) "\n" (include "raggie.redisEnv" $root) "\n" (include "raggie.s3Env" $root) -}}
+{{- $env = print $env (include "raggie.secretEnv" (dict "root" $root "keys" (list "INTERNAL_API_SECRET" "LLMAAS_API_KEY?" "QDRANT_API_KEY?"))) -}}
+{{- $kedaRole := index $keda $role | default dict -}}
+{{- include "raggie.deployment" (dict
+  "root" $root "component" $component "svc" "workers" "values" $wv "common" $ws "image" $ws.image
+  "replicas" $wv.replicas
+  "autoscaled" (and $keda.enabled ($kedaRole.enabled | default false))
+  "ports" (list (dict "name" "health" "port" $ws.healthPort))
+  "probePort" "health" "readyPath" "/readyz" "livePath" "/healthz"
+  "env" $env) }}
+{{- end }}
+{{- end }}
+{{- if .Values.mockLLM.enabled }}
+{{- $l := .Values.mockLLM -}}
+{{- include "raggie.deployment" (dict
+  "root" . "component" "mockllm" "svc" "mockllm" "values" (dict "resources" (dict "requests" (dict "cpu" "50m" "memory" "32Mi") "limits" (dict "memory" "128Mi"))) "image" $l.image
+  "replicas" 1
+  "common" (dict "podSecurityContext" (dict "runAsUser" 65532 "runAsGroup" 65532))
+  "ports" (list (dict "name" "http" "port" $l.port))
+  "probePort" "http" "readyPath" "/healthz" "livePath" "/healthz"
+  "env" (include "raggie.envMap" (merge (dict "MOCKLLM_ADDR" (printf ":%d" (int $l.port))) $l.env))) }}
+{{- end }}

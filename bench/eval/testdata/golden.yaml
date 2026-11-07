@@ -1,0 +1,56 @@
+# Test fixture in the examples/golden/golden.yaml schema (see examples/golden/README.md).
+version: 1
+corpus: "corpus"
+questions:
+  - id: "f-001"
+    question: "Tam zamanlı bir çalışan yılda kaç gün yıllık izin alır?"
+    language: "tr"
+    answer: "18 iş günü"
+    answer_variants: ["18 gün", "on sekiz iş günü"]
+    expected_documents: ["izin_politikasi_2026.md"]
+    evidence:
+      - document: "izin_politikasi_2026.md"
+        quote: "yılda 18 iş günü ücretli yıllık izin"
+    type: "single-fact"
+    department: "insan-kaynaklari"
+    difficulty: "easy"
+  - id: "f-002"
+    question: "What is the international daily allowance in travel policy version 3?"
+    language: "en"
+    answer: "85 EUR"
+    answer_variants: ["85 euros", "€85"]
+    expected_documents: ["travel_policy_v3.md"]
+    evidence: ["caps the international daily allowance at 85 EUR"]
+    type: "temporal/version"
+    difficulty: 2
+  - id: "f-003"
+    question: "Profesyonel paketin aylık fiyatı nedir?"
+    language: "tr"
+    answer: "3.400 TL"
+    expected_documents: ["fiyat_listesi_2026.txt"]
+    evidence: ["Profesyonel | 3.400 TL"]
+    type: "table-lookup"
+    difficulty: "medium"
+  - id: "f-004"
+    question: "Satın alma birimi kime bağlıdır ve Profesyonel paket kaç TL?"
+    language: "tr"
+    answer: "Elif Kaya; 3.400 TL"
+    expected_documents: ["org_chart.md", "fiyat_listesi_2026.txt"]
+    evidence:
+      - document: "org_chart.md"
+        quote: "Finans direktörü Elif Kaya'dır"
+      - "Satın alma birimi finans direktörüne bağlıdır"
+      - document: "fiyat_listesi_2026.txt"
+        quote: "Profesyonel | 3.400 TL"
+    type: "multi-hop"
+    difficulty: "hard"
+  - id: "f-005"
+    question: "What is the company's parental leave policy for contractors?"
+    language: "en"
+    answer: null
+    expected_documents: []
+    evidence: []
+    type: "negative/unanswerable"
+    difficulty: "medium"
+    absent_terms: ["parental leave"]
+    notes: "The corpus has no contractor leave policy."

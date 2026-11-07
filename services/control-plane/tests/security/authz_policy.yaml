@@ -1,0 +1,247 @@
+# Control-plane authorization policy — one entry per route + method.
+#
+# tests/security/test_authz_matrix.py fails when a route exists without an entry
+# here (or an entry names a route that no longer exists), and asserts for every
+# principal that it is allowed (status not 401/403/404) or denied (401/403/404).
+#
+# Path params point at ORG A resources, so super_admin_other_org proves tenant
+# isolation. `allow` lists principals and/or groups. Request bodies use
+# {placeholders} filled from the seeded fixture ids. `params` overrides a path
+# param's default fixture; `allow_5xx` tolerates a 5xx for allowed callers.
+# A key may carry a `#variant` suffix (e.g. `POST /x#team-scope`) for an extra
+# case of the same route; `query` sets query parameters (placeholders allowed).
+#
+# Principals: anonymous, widget_token, staff, workspace_admin, team_admin,
+# super_admin_same_org, super_admin_other_org, platform_admin, deactivated_user,
+# revoked_token.
+
+groups:
+  PUBLIC: [anonymous, widget_token, staff, workspace_admin, team_admin, super_admin_same_org,
+           super_admin_other_org, platform_admin, deactivated_user, revoked_token]
+  AUTHENTICATED: [staff, workspace_admin, team_admin, super_admin_same_org,
+                  super_admin_other_org, platform_admin]
+  # Admins acting on their OWN org (routes not addressed to org A by path).
+  ANY_ADMIN: [workspace_admin, team_admin, super_admin_same_org, super_admin_other_org,
+              platform_admin]
+  SUPER_ADMINS: [super_admin_same_org, super_admin_other_org, platform_admin]
+  # Authority over org A (path-addressed): org-A admins + the platform admin.
+  ORG_A_ADMINS: [workspace_admin, team_admin, super_admin_same_org, platform_admin]
+  # Org-A records only reachable from inside org A (self-org scoped routes).
+  ORG_A_OWN_ADMINS: [workspace_admin, team_admin, super_admin_same_org]
+  WS_A_VIEWERS: [staff, workspace_admin, team_admin, super_admin_same_org, platform_admin]
+  WS_A_MANAGERS: [workspace_admin, team_admin, super_admin_same_org, platform_admin]
+  # Chat in org A: members + the org's SUPER_ADMIN (platform admin is another org).
+  WS_A_CHATTERS: [staff, workspace_admin, team_admin, super_admin_same_org]
+  PLATFORM: [platform_admin]
+  OWNER_STAFF: [staff]
+  NOBODY: []
+
+routes:
+  # ── Probes ────────────────────────────────────────────────────────────────
+  GET /healthz: {allow: PUBLIC}
+  GET /readyz: {allow: PUBLIC, allow_5xx: true}  # no pool under the test transport
+  GET /metrics: {allow: PUBLIC}  # METRICS_TOKEN unset here; token mode: test_config_security
+
+  # ── Onboarding / public auth ──────────────────────────────────────────────
+  GET /api/v1/onboarding/state: {allow: PUBLIC}
+  POST /api/v1/onboarding/bootstrap:
+    allow: PUBLIC  # 409: already bootstrapped
+    json: {email: "boot@matrix.test", password: "matrix-password-1", org_name: "X",
+           setup_token: "x"}
+  POST /api/v1/onboarding/workspace:
+    allow: PLATFORM  # flips the platform-wide is_onboarded flag
+    json: {type: INTERNAL, name: "matrix ws"}
+  POST /api/v1/auth/login:
+    allow: PUBLIC
+    json: {email: "{login_email}", password: "{login_password}"}
+  POST /api/v1/auth/refresh:
+    allow: PUBLIC
+    json: {refresh_token: "{login_refresh}"}
+  GET /api/v1/auth/invites/{token}/preview: {allow: PUBLIC}
+  POST /api/v1/auth/invites/accept:
+    allow: PUBLIC
+    json: {token: "{invite_raw}", password: "matrix-password-1"}
+  GET /api/v1/auth/sso/login: {allow: PUBLIC}
+  GET /api/v1/auth/sso/callback:
+    allow: PUBLIC  # 400 without the browser-bound flow cookie
+    query: {code: c, state: s}
+  GET /api/v1/branding: {allow: PUBLIC}
+
+  # ── Self-service account ──────────────────────────────────────────────────
+  GET /api/v1/auth/me: {allow: AUTHENTICATED}
+  POST /api/v1/auth/logout: {allow: AUTHENTICATED}
+  GET /api/v1/auth/profile: {allow: AUTHENTICATED}
+  PATCH /api/v1/auth/profile: {allow: AUTHENTICATED, json: {job_title: "Matrix"}}
+  POST /api/v1/auth/change-password:
+    allow: AUTHENTICATED  # 400: wrong current password
+    json: {current_password: "nope", new_password: "matrix-password-2"}
+  PUT /api/v1/auth/locale: {allow: AUTHENTICATED, json: {locale: en}}
+  PUT /api/v1/auth/me/preferences: {allow: AUTHENTICATED, json: {answer_style: short}}
+  GET /api/v1/auth/memory: {allow: AUTHENTICATED}
+  DELETE /api/v1/auth/memory: {allow: AUTHENTICATED}
+  POST /api/v1/auth/memory/import: {allow: AUTHENTICATED, json: {text: "- likes tea"}}
+  GET /api/v1/models: {allow: AUTHENTICATED}
+  GET /api/v1/workspaces: {allow: AUTHENTICATED}
+  GET /api/v1/notifications: {allow: AUTHENTICATED}
+  POST /api/v1/notifications/read-all: {allow: AUTHENTICATED}
+  POST /api/v1/notifications/{notification_id}/read: {allow: OWNER_STAFF}
+  DELETE /api/v1/notifications/{notification_id}: {allow: OWNER_STAFF}
+
+  # ── Invites (self-org admin) ──────────────────────────────────────────────
+  GET /api/v1/auth/invites: {allow: ANY_ADMIN}
+  POST /api/v1/auth/invites: {allow: ANY_ADMIN, json: {email: "inv@matrix.test"}}
+  POST /api/v1/auth/invites/{invite_id}/resend: {allow: ORG_A_OWN_ADMINS}
+  POST /api/v1/auth/invites/{invite_id}/revoke: {allow: ORG_A_OWN_ADMINS}
+
+  # ── Scheduled tasks ───────────────────────────────────────────────────────
+  GET /api/v1/scheduled-tasks: {allow: AUTHENTICATED}
+  POST /api/v1/scheduled-tasks:
+    allow: WS_A_CHATTERS
+    json: {name: t, workspace_id: "{ws_a}", prompt: p, cron: "0 9 * * *"}
+  PUT /api/v1/scheduled-tasks/{task_id}: {allow: OWNER_STAFF, json: {name: renamed}}
+  DELETE /api/v1/scheduled-tasks/{task_id}: {allow: OWNER_STAFF}
+
+  # ── Skills ────────────────────────────────────────────────────────────────
+  GET /api/v1/skills: {allow: AUTHENTICATED}
+  GET /api/v1/skills/personal: {allow: AUTHENTICATED}
+  POST /api/v1/skills/personal:
+    allow: AUTHENTICATED
+    json: {name: n, slug: "matrix-personal", instructions: i}
+  PUT /api/v1/skills/personal/{skill_id}:
+    allow: OWNER_STAFF
+    params: {skill_id: personal_skill}
+    json: {name: renamed}
+  DELETE /api/v1/skills/personal/{skill_id}: {allow: OWNER_STAFF, params: {skill_id: personal_skill}}
+  GET /api/v1/skills/personal/{skill_id}/versions:
+    {allow: OWNER_STAFF, params: {skill_id: personal_skill}}
+  POST /api/v1/skills/personal/{skill_id}/versions/{version}/restore:
+    {allow: OWNER_STAFF, params: {skill_id: personal_skill}}
+  GET /api/v1/admin/skills: {allow: ANY_ADMIN}
+  POST /api/v1/admin/skills:
+    allow: ANY_ADMIN
+    json: {name: n, slug: "matrix-org", instructions: i}
+  PUT /api/v1/admin/skills/{skill_id}: {allow: ORG_A_OWN_ADMINS, json: {name: renamed}}
+  DELETE /api/v1/admin/skills/{skill_id}: {allow: ORG_A_OWN_ADMINS}
+  GET /api/v1/admin/skills/{skill_id}/versions: {allow: ORG_A_OWN_ADMINS}
+  POST /api/v1/admin/skills/{skill_id}/versions/{version}/restore: {allow: ORG_A_OWN_ADMINS}
+
+  # ── Integrations ──────────────────────────────────────────────────────────
+  GET /api/v1/integrations/providers: {allow: AUTHENTICATED}
+  GET /api/v1/integrations/available: {allow: AUTHENTICATED}
+  GET /api/v1/integrations: {allow: AUTHENTICATED}
+  POST /api/v1/integrations:
+    allow: WS_A_MANAGERS
+    json: {provider: slack, scope_type: workspace, scope_id: "{ws_a}"}
+  # Team scope: org A's SUPER_ADMIN, a WORKSPACE_ADMIN of that team and the
+  # platform admin; a workspace-only admin is refused, another org gets 404.
+  GET /api/v1/integrations#team-scope:
+    allow: [team_admin, super_admin_same_org, platform_admin]
+    query: {scope_type: team, scope_id: "{team_a}"}
+  POST /api/v1/integrations#team-scope:
+    allow: [team_admin, super_admin_same_org, platform_admin]
+    json: {provider: slack, scope_type: team, scope_id: "{team_a}"}
+  PATCH /api/v1/integrations/{integration_id}: {allow: ORG_A_OWN_ADMINS, json: {display_name: x}}
+  DELETE /api/v1/integrations/{integration_id}: {allow: ORG_A_OWN_ADMINS}
+
+  # ── Platform-wide (platform admin only) ──────────────────────────────────
+  GET /api/v1/admin/orgs: {allow: PLATFORM}
+  POST /api/v1/admin/orgs: {allow: PLATFORM, json: {name: "matrix org"}}
+  GET /api/v1/admin/ai-config: {allow: PLATFORM}
+  PUT /api/v1/admin/ai-config: {allow: PLATFORM, json: {}}
+  PUT /api/v1/admin/branding: {allow: PLATFORM, json: {name: Matrix}}
+  POST /api/v1/admin/branding/icon: {allow: PLATFORM, file: png}
+  POST /api/v1/admin/branding/logo: {allow: PLATFORM, file: png}
+  GET /api/v1/admin/updates: {allow: PLATFORM}
+  POST /api/v1/admin/documents/reindex-all: {allow: PLATFORM}
+  POST /api/v1/admin/documents/retry-failed: {allow: PLATFORM}
+  GET /api/v1/admin/embeddings: {allow: PLATFORM}
+  POST /api/v1/admin/embeddings/reembed:
+    allow: PLATFORM
+    json: {fingerprint: "2872ae6a"}  # the stub gateway's (legacy) profile
+  PUT /api/v1/admin/users/{user_id}/platform-admin:
+    allow: PLATFORM
+    params: {user_id: super_admin_same_org}
+    json: {is_platform_admin: true}
+
+  # ── Admin dashboards (scoped to the caller's own org) ────────────────────
+  GET /api/v1/admin/analytics: {allow: AUTHENTICATED}
+  GET /api/v1/admin/analytics/usage-by-user: {allow: AUTHENTICATED}
+  GET /api/v1/admin/conversations/flagged: {allow: AUTHENTICATED}
+  GET /api/v1/admin/audit: {allow: SUPER_ADMINS}
+  GET /api/v1/admin/qdrant/scatter: {allow: ANY_ADMIN}
+
+  # ── Org A (path-addressed) ───────────────────────────────────────────────
+  GET /api/v1/admin/orgs/{org_id}: {allow: ORG_A_ADMINS}
+  GET /api/v1/admin/orgs/{org_id}/users: {allow: ORG_A_ADMINS}
+  POST /api/v1/admin/orgs/{org_id}/users: {allow: ORG_A_ADMINS, json: {email: "new@matrix.test"}}
+  PATCH /api/v1/admin/orgs/{org_id}/users/{user_id}: {allow: ORG_A_ADMINS, json: {job_title: x}}
+  PATCH /api/v1/admin/orgs/{org_id}/users/{user_id}/active:
+    {allow: ORG_A_ADMINS, json: {active: false}}
+  POST /api/v1/admin/orgs/{org_id}/users/{user_id}/reset-password: {allow: ORG_A_ADMINS}
+  GET /api/v1/admin/orgs/{org_id}/org-chart: {allow: ORG_A_ADMINS}
+  GET /api/v1/admin/orgs/{org_id}/departments: {allow: ORG_A_ADMINS}
+  POST /api/v1/admin/orgs/{org_id}/departments: {allow: ORG_A_ADMINS, json: {name: "New Dept"}}
+  PATCH /api/v1/admin/orgs/{org_id}/departments/{dept_id}: {allow: ORG_A_ADMINS, json: {name: R}}
+  DELETE /api/v1/admin/orgs/{org_id}/departments/{dept_id}: {allow: ORG_A_ADMINS}
+  GET /api/v1/admin/orgs/{org_id}/locations: {allow: ORG_A_ADMINS}
+  POST /api/v1/admin/orgs/{org_id}/locations: {allow: ORG_A_ADMINS, json: {name: "New Loc"}}
+  PATCH /api/v1/admin/orgs/{org_id}/locations/{loc_id}: {allow: ORG_A_ADMINS, json: {name: R}}
+  DELETE /api/v1/admin/orgs/{org_id}/locations/{loc_id}: {allow: ORG_A_ADMINS}
+  GET /api/v1/admin/orgs/{org_id}/teams: {allow: ORG_A_ADMINS}
+  POST /api/v1/admin/orgs/{org_id}/teams: {allow: ORG_A_ADMINS, json: {name: "New Team"}}
+  GET /api/v1/admin/orgs/{org_id}/teams/{team_id}: {allow: ORG_A_ADMINS}
+  GET /api/v1/admin/orgs/{org_id}/teams/{team_id}/workspaces: {allow: ORG_A_ADMINS}
+  GET /api/v1/admin/orgs/{org_id}/teams/{team_id}/documents: {allow: ORG_A_ADMINS}
+  GET /api/v1/admin/orgs/{org_id}/teams/{team_id}/members: {allow: ORG_A_ADMINS}
+  POST /api/v1/admin/orgs/{org_id}/teams/{team_id}/members:
+    {allow: ORG_A_ADMINS, json: {user_id: "{staff}", role: STAFF}}
+  DELETE /api/v1/admin/orgs/{org_id}/teams/{team_id}/members/{user_id}: {allow: ORG_A_ADMINS}
+  GET /api/v1/admin/orgs/{org_id}/workspaces: {allow: ORG_A_ADMINS}
+  POST /api/v1/admin/orgs/{org_id}/workspaces:
+    {allow: ORG_A_ADMINS, json: {name: "New WS", type: INTERNAL}}
+
+  # ── Workspace A (path-addressed) ─────────────────────────────────────────
+  GET /api/v1/admin/workspaces/{workspace_id}: {allow: WS_A_VIEWERS}
+  GET /api/v1/admin/workspaces/{workspace_id}/members: {allow: WS_A_VIEWERS}
+  POST /api/v1/admin/workspaces/{workspace_id}/members:
+    {allow: WS_A_MANAGERS, json: {user_id: "{victim}", role: STAFF}}
+  DELETE /api/v1/admin/workspaces/{workspace_id}/members/{user_id}: {allow: WS_A_MANAGERS}
+  GET /api/v1/admin/workspaces/{workspace_id}/settings: {allow: WS_A_MANAGERS}
+  PUT /api/v1/admin/workspaces/{workspace_id}/settings:
+    {allow: WS_A_MANAGERS, json: {web_search_enabled: false, memory_enabled: true}}
+  GET /api/v1/admin/workspaces/{workspace_id}/widget: {allow: WS_A_MANAGERS}
+  PUT /api/v1/admin/workspaces/{workspace_id}/widget:
+    {allow: WS_A_MANAGERS, json: {widget_primary_color: "#112233"}}
+  GET /api/v1/admin/workspaces/{workspace_id}/documents: {allow: WS_A_VIEWERS}
+  POST /api/v1/admin/workspaces/{workspace_id}/documents: {allow: WS_A_MANAGERS, file: txt}
+  POST /api/v1/admin/workspaces/{workspace_id}/documents/reindex: {allow: WS_A_MANAGERS}
+  POST /api/v1/admin/workspaces/{workspace_id}/documents/uploads:
+    {allow: WS_A_MANAGERS, json: {filename: "big.pdf"}}
+  PUT /api/v1/admin/workspaces/{workspace_id}/documents/uploads/parts:
+    allow: WS_A_MANAGERS  # 400: object key outside the workspace
+    headers: {X-Upload-Id: u, X-Object-Key: "uploads/elsewhere/x.pdf", X-Part-Number: "1"}
+  POST /api/v1/admin/workspaces/{workspace_id}/documents/uploads/complete:
+    allow: WS_A_MANAGERS  # 400: no parts
+    json: {upload_id: u, object_key: "uploads/{ws_a}/x.pdf", filename: "x.pdf", parts: []}
+  POST /api/v1/admin/workspaces/{workspace_id}/documents/uploads/abort:
+    allow: WS_A_MANAGERS  # 400: object key outside the workspace
+    json: {upload_id: u, object_key: "uploads/elsewhere/x.pdf"}
+  PATCH /api/v1/admin/workspaces/{workspace_id}/documents/{document_id}:
+    {allow: WS_A_MANAGERS, json: {folder_id: null}}
+  DELETE /api/v1/admin/workspaces/{workspace_id}/documents/{document_id}: {allow: WS_A_MANAGERS}
+  POST /api/v1/admin/workspaces/{workspace_id}/documents/{document_id}/archive:
+    {allow: WS_A_MANAGERS}
+  GET /api/v1/admin/workspaces/{workspace_id}/folders: {allow: WS_A_VIEWERS}
+  POST /api/v1/admin/workspaces/{workspace_id}/folders: {allow: WS_A_MANAGERS, json: {name: F2}}
+  PATCH /api/v1/admin/workspaces/{workspace_id}/folders/{folder_id}:
+    {allow: WS_A_MANAGERS, json: {name: F3}}
+  DELETE /api/v1/admin/workspaces/{workspace_id}/folders/{folder_id}: {allow: WS_A_MANAGERS}
+
+  # ── SCIM: only the SCIM bearer token, never a user/widget JWT ────────────
+  GET /scim/v2/Users: {allow: NOBODY}
+  POST /scim/v2/Users: {allow: NOBODY, json: {userName: "s@matrix.test"}}
+  GET /scim/v2/Users/{user_id}: {allow: NOBODY}
+  PATCH /scim/v2/Users/{user_id}: {allow: NOBODY, json: {Operations: []}}
+  DELETE /scim/v2/Users/{user_id}: {allow: NOBODY}
+  GET /scim/v2/Groups: {allow: NOBODY}
+  POST /scim/v2/Groups: {allow: NOBODY, json: {displayName: G}}
