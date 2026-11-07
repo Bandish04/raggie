@@ -22,7 +22,7 @@ env:
 jobs:
   edge-fuzz:
     name: edge fuzz (long)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     # 23 targets x 10 minutes, run sequentially.
     timeout-minutes: 300
     steps:
@@ -54,7 +54,7 @@ jobs:
 
   python-slow:
     name: ${{ matrix.service }} (RAGGIE_SLOW_TESTS)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 60
     strategy:
       fail-fast: false
@@ -113,7 +113,7 @@ jobs:
 
   embeddings-models:
     name: embeddings (real ONNX models)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 60
     env:
       EMBEDDINGS_MODEL_TESTS: "1"
@@ -134,7 +134,7 @@ jobs:
 
   e2e-stack:
     name: web e2e (full compose stack)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 90
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -188,7 +188,7 @@ jobs:
 
   bench-test:
     name: bench harness tests
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -206,7 +206,7 @@ jobs:
   # alert, and the curated Medium rules marked FAIL, fail the job.
   dast:
     name: DAST (OWASP ZAP)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 150
     env:
       ZAP_IMAGE: zaproxy/zap-stable:2.17.0@sha256:9624669db72f54d86c4b46a7064518bd9bf79d8c61a4c31befa9923489f328af
@@ -346,7 +346,7 @@ jobs:
   # go-licenses.
   notices-fresh:
     name: third-party notices up to date
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

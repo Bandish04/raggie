@@ -173,6 +173,10 @@ EOF
   local used
   used="$(grep -rhoE 'uses: *[^ ]+' "$REPO_ROOT/.github/workflows" | sed -E 's/uses: *//; s/@.*//' |
     grep -vE '^(actions|github)/|^\./|^docker://' | sort -u)"
+  # Composite actions' internal dependencies are enforced too (settings.py NESTED_ACTIONS).
+  if grep -qx 'aquasecurity/trivy-action' <<<"$used"; then
+    used="$(printf '%s\naquasecurity/setup-trivy\n' "$used" | sort -u)"
+  fi
   while IFS= read -r a; do assert_contains "$selected" "\"$a@*\""; done <<<"$used"
   [[ "$(grep -c '@\*' <<<"$selected")" == "$(wc -l <<<"$used" | tr -d ' ')" ]] ||
     fail_test "unexpected patterns: $selected"

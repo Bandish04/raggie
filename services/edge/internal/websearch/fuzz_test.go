@@ -136,6 +136,7 @@ func FuzzCanonicalURL(f *testing.F) {
 	for _, s := range []string{
 		"https://Example.com:443/a?utm_campaign=x&b=2&fbclid=y#z", "http://[::1]:8080/", "ftp://x", "https://xn--e1afmkfd.xn--p1ai/",
 		"https://example.com/%zz", "https://user:pass@host/", "https://host./?ref=1",
+		"http://[::]", "https://[2001:DB8::1]:443/a", // IPv6 without a kept port keeps its brackets
 	} {
 		f.Add(s)
 	}

@@ -8,6 +8,7 @@ from raggie_embeddings.config import Settings
 
 uvicorn.run(
     "raggie_embeddings.main:app",
-    host="0.0.0.0",  # container entrypoint: the orchestrator decides exposure
+    # Container entrypoint: the orchestrator decides exposure.
+    host="0.0.0.0",  # nosec B104
     port=Settings().embeddings_port,
 )

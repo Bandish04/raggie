@@ -600,8 +600,11 @@ func CanonicalURL(raw string) string {
 		return ""
 	}
 	port := u.Port()
-	if port != "" && !((u.Scheme == "http" && port == "80") || (u.Scheme == "https" && port == "443")) {
+	switch {
+	case port != "" && !((u.Scheme == "http" && port == "80") || (u.Scheme == "https" && port == "443")):
 		host = net.JoinHostPort(host, port)
+	case strings.Contains(host, ":"): // IPv6 literal: Hostname() dropped the brackets
+		host = "[" + host + "]"
 	}
 	u.Host = host
 	u.Fragment = ""

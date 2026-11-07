@@ -9,9 +9,11 @@ os.environ.setdefault("RUN_MIGRATIONS_ON_BOOT", "true")
 # An unset RAGGIE_ENV means production (strict secrets, setup token required);
 # the suite runs as "test", which keeps the dev defaults usable.
 os.environ.setdefault("RAGGIE_ENV", "test")
-# The disposable test Redis (scripts/test_deps.sh), so lifespan-backed clients
-# never try to resolve the compose-only "redis" hostname.
-os.environ.setdefault("REDIS_URL", "redis://localhost:56379")
+# The disposable test Redis, so lifespan-backed clients never try to resolve the
+# compose-only "redis" hostname. REDIS_TEST_URL is what CI and
+# `make test-integration` export (shared with the workers suite); the fallback
+# is scripts/test_deps.sh's port.
+os.environ.setdefault("REDIS_URL", os.environ.get("REDIS_TEST_URL", "redis://localhost:56379"))
 # The embeddings gateway is never real in tests: the `gateway` fixture mocks it.
 os.environ.setdefault("EMBEDDINGS_BASE_URL", "http://embeddings.test/v1")
 

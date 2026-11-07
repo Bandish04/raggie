@@ -41,10 +41,11 @@ def hf_offline() -> bool:
     return os.environ.get("HF_HUB_OFFLINE", "").strip().lower() in {"1", "true", "yes", "on"}
 
 
-def _snapshot_download(**kwargs) -> str:
+def _snapshot_download(*, repo_id: str, revision: str, **kwargs) -> str:
+    # revision is required: every download is pinned to an exact commit.
     from huggingface_hub import snapshot_download
 
-    return snapshot_download(**kwargs)
+    return snapshot_download(repo_id=repo_id, revision=revision, **kwargs)
 
 
 @dataclass(frozen=True)

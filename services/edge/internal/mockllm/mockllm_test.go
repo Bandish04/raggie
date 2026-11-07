@@ -212,15 +212,17 @@ func TestTokenDelayPacesTheStream(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer resp.Body.Close()
-	chunks := 0
+	// The pause sits between content tokens only (not before the final stop
+	// chunk), so N content chunks take at least N-1 delays.
+	tokens := 0
 	sc := bufio.NewScanner(resp.Body)
 	for sc.Scan() {
-		if strings.HasPrefix(sc.Text(), "data: {") {
-			chunks++
+		if strings.HasPrefix(sc.Text(), "data: {") && strings.Contains(sc.Text(), `"content":`) {
+			tokens++
 		}
 	}
-	if elapsed := time.Since(start); chunks < 3 || elapsed < time.Duration(chunks-1)*15*time.Millisecond {
-		t.Fatalf("expected paced chunks: %d chunks in %v", chunks, elapsed)
+	if elapsed := time.Since(start); tokens < 3 || elapsed < time.Duration(tokens-1)*15*time.Millisecond {
+		t.Fatalf("expected paced tokens: %d content chunks in %v", tokens, elapsed)
 	}
 }
 

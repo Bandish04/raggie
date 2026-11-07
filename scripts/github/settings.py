@@ -149,6 +149,13 @@ def required_checks(workflows: Path) -> list[str]:
     return checks
 
 
+# Actions that a composite action calls internally. GitHub enforces the
+# allow-list on them too, but they never appear in a workflow file.
+NESTED_ACTIONS = {
+    "aquasecurity/trivy-action": ("aquasecurity/setup-trivy",),
+}
+
+
 def third_party_actions(workflows: Path) -> list[str]:
     """Allow-list patterns for every non-GitHub action the workflows use."""
     used: set[str] = set()
@@ -162,6 +169,7 @@ def third_party_actions(workflows: Path) -> list[str]:
                 if action.split("/", 1)[0] in ("actions", "github"):
                     continue  # covered by github_owned_allowed
                 used.add(f"{action}@*")
+                used.update(f"{nested}@*" for nested in NESTED_ACTIONS.get(action, ()))
     return sorted(used)
 
 

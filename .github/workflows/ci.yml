@@ -32,7 +32,7 @@ env:
 jobs:
   edge:
     name: edge (go)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     services:
       postgres:
@@ -129,7 +129,7 @@ jobs:
 
   python:
     name: ${{ matrix.service }} (python)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     strategy:
       fail-fast: false
@@ -195,7 +195,7 @@ jobs:
 
   web:
     name: web (next.js)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     defaults:
       run:
@@ -240,7 +240,7 @@ jobs:
 
   widget:
     name: widget (vanilla js)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -255,7 +255,7 @@ jobs:
 
   secrets:
     name: security / secrets (gitleaks)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -271,7 +271,7 @@ jobs:
 
   sast:
     name: security / sast (semgrep, bandit, gosec)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -327,7 +327,7 @@ jobs:
 
   iac:
     name: security / dockerfiles + deploy config
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -349,7 +349,7 @@ jobs:
 
   deploy-validate:
     name: compose + kustomize validate
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -403,6 +403,9 @@ jobs:
         run: |
           docker compose -f deploy/compose/docker-compose.yml --env-file .env --profile core \
             config --format json > "$RUNNER_TEMP/compose-core.json"
+          # charts/*.tgz is gitignored: fetch the qdrant subchart (Chart.lock pins it).
+          helm repo add qdrant https://qdrant.github.io/qdrant-helm >/dev/null
+          helm dependency build deploy/helm/raggie >/dev/null
           for profile in single ha; do
             helm template raggie deploy/helm/raggie -n raggie --skip-tests \
               -f "deploy/helm/raggie/values-$profile.yaml" > "$RUNNER_TEMP/helm-$profile.yaml"

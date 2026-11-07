@@ -1,6 +1,13 @@
 # Weekly dependency updates. Minor and patch bumps are grouped into one PR per
 # ecosystem and directory; majors arrive as individual PRs so they get a real
 # review. Security updates are not affected by these groups.
+#
+# Ignored on purpose (planned upgrades, never a one-line bump):
+# - datastore majors: a Postgres major needs pg_upgrade, Valkey/SeaweedFS majors
+#   change the on-disk format; Qdrant cannot skip a minor (docs/upgrade.md);
+# - language toolchains: python 3.x / golang 1.x minors move together with
+#   requires-python + uv.lock and go.mod; node and @types/node track the LTS line;
+# - ruff: one version everywhere, bumped together with a `make format` pass.
 version: 2
 
 updates:
@@ -18,12 +25,18 @@ updates:
     schedule: { interval: weekly, day: monday }
     groups:
       minor-and-patch: { update-types: [minor, patch] }
+    ignore:
+      # Pinned in four places (pyprojects, ruff.toml, ci.yml, Makefile): bump by hand.
+      - dependency-name: ruff
 
   - package-ecosystem: npm
     directory: /web
     schedule: { interval: weekly, day: monday }
     groups:
       minor-and-patch: { update-types: [minor, patch] }
+    ignore:
+      - dependency-name: "@types/node"
+        update-types: [version-update:semver-major]
 
   - package-ecosystem: docker
     directories:
@@ -35,12 +48,28 @@ updates:
     schedule: { interval: weekly, day: monday }
     groups:
       minor-and-patch: { update-types: [minor, patch] }
+    ignore:
+      - dependency-name: python
+        update-types: [version-update:semver-major, version-update:semver-minor]
+      - dependency-name: golang
+        update-types: [version-update:semver-major, version-update:semver-minor]
+      - dependency-name: node
+        update-types: [version-update:semver-major]
 
   - package-ecosystem: docker-compose
     directory: /deploy/compose
     schedule: { interval: weekly, day: monday }
     groups:
       minor-and-patch: { update-types: [minor, patch] }
+    ignore:
+      - dependency-name: postgres
+        update-types: [version-update:semver-major]
+      - dependency-name: valkey/valkey
+        update-types: [version-update:semver-major]
+      - dependency-name: chrislusf/seaweedfs
+        update-types: [version-update:semver-major]
+      - dependency-name: qdrant/qdrant
+        update-types: [version-update:semver-major, version-update:semver-minor]
 
   # Keeps the SHA pins in .github/workflows current (and their version comments).
   - package-ecosystem: github-actions
