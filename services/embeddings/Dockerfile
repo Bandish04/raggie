@@ -62,7 +62,10 @@ ENV PYTHONUNBUFFERED=1 \
     TMPDIR=/tmp
 WORKDIR /app
 
-RUN useradd -m -u 10001 raggie
+# The runtime never installs packages: drop the base image's pip, whose
+# vendored urllib3 / msgpack / setuptools lag the venv's patched versions.
+RUN python -m pip uninstall -y -q pip \
+    && useradd -m -u 10001 raggie
 
 COPY --from=build /app/.venv /app/.venv
 COPY --from=models --chown=raggie:raggie /models /home/raggie/.cache/fastembed

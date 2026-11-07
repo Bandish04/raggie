@@ -48,13 +48,19 @@ A tag with a suffix (`v0.2.0-rc.1`) becomes a pre-release.
 On the tag push it:
 
 1. regenerates `THIRD_PARTY_NOTICES.md` on Linux and fails on unapproved review rows;
-2. builds the images for linux/amd64 and linux/arm64 and pushes them to GHCR:
-   - `ghcr.io/<owner>/raggie-{edge,control-plane,workers,web,mockllm}:X.Y.Z`;
-   - `raggie-embeddings:X.Y.Z-local` (models baked in) and `-slim` (BM25 only);
-3. scans every image with Trivy and signs it keylessly with cosign;
+2. builds the images for linux/amd64 and linux/arm64 and pushes them to GHCR by
+   digest only (untagged);
+3. scans every image with Trivy (HIGH/CRITICAL with a fix fail the release) and
+   signs it keylessly with cosign;
 4. attaches an SPDX SBOM (a cosign attestation and a release asset) and SLSA
    build provenance;
-5. creates the GitHub Release:
+5. only then tags the verified digest, and checks that each tag resolves to it:
+   - `ghcr.io/<owner>/raggie-{edge,control-plane,workers,web,mockllm}:X.Y.Z`;
+   - `raggie-embeddings:X.Y.Z-local` (models baked in) and `-slim` (BM25 only).
+
+   An image that fails a gate is never reachable under a release tag. A failed
+   run leaves only untagged digests behind.
+6. creates the GitHub Release:
    - notes from the changelog section, plus a "Verify" block;
    - `install.sh`, pinned to the version (`RAGGIE_DEFAULT_VERSION`), and `install.sh.sha256`;
    - `raggie-X.Y.Z.tar.gz` (a `git archive` of the tag) and `SHA256SUMS`;

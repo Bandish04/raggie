@@ -1,0 +1,67 @@
+name: Image scan
+
+# Builds every service image (linux/amd64, not pushed) and runs the same Trivy
+# gate as release.yml, so a vulnerable base image or bundled tool is caught on
+# the pull request that introduces it, not at tag time. embeddings is built in
+# its -slim variant: -local adds only model files, no packages. No step reads
+# untrusted event data; the expressions below are static matrix values.
+on:
+  pull_request:
+    paths:
+      - "**/Dockerfile*"
+      - "**/uv.lock"
+      - "**/go.sum"
+      - "web/pnpm-lock.yaml"
+      - ".github/workflows/image-scan.yml"
+  schedule:
+    - cron: "17 4 * * 1" # weekly: new CVEs in unchanged images
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: image-scan-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  scan:
+    name: scan ${{ matrix.name }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: edge, context: services/edge, file: services/edge/Dockerfile }
+          - { name: mockllm, context: services/edge, file: services/edge/Dockerfile.mockllm }
+          - { name: control-plane, context: services/control-plane, file: services/control-plane/Dockerfile }
+          - { name: workers, context: services/workers, file: services/workers/Dockerfile }
+          - name: embeddings-slim
+            context: services/embeddings
+            file: services/embeddings/Dockerfile
+            build-args: EMBEDDINGS_BAKE=sparse
+          - { name: web, context: web, file: web/Dockerfile }
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.file }}
+          platforms: linux/amd64
+          build-args: ${{ matrix.build-args }}
+          pull: true
+          load: true
+          tags: raggie-scan/${{ matrix.name }}:ci
+          provenance: false
+          sbom: false
+      - name: trivy image scan (release gate)
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: raggie-scan/${{ matrix.name }}:ci
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"

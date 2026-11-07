@@ -42,7 +42,10 @@ RUN apt-get update \
         tesseract-ocr tesseract-ocr-tur tesseract-ocr-eng \
     && rm -rf /var/lib/apt/lists/*
 
-RUN useradd -m -u 10001 raggie
+# The runtime never installs packages: drop the base image's pip, whose
+# vendored urllib3 / msgpack / setuptools lag the venv's patched versions.
+RUN python -m pip uninstall -y -q pip \
+    && useradd -m -u 10001 raggie
 
 COPY --from=build /app/.venv /app/.venv
 

@@ -192,16 +192,19 @@ jobs:
           build-contexts: licenses=${{ runner.temp }}/licenses
           platforms: linux/amd64,linux/arm64
           build-args: ${{ matrix.build-args }}
-          push: true
           pull: true
-          tags: ${{ steps.meta.outputs.tags }}
+          # Pushed by digest only: the release tags are added in the last step,
+          # after the scan, signature and attestations, so an image that fails
+          # the gate is never reachable as 0.1.0 / latest.
+          outputs: type=image,name=${{ steps.name.outputs.ref }},push-by-digest=true,name-canonical=true,push=true
           labels: ${{ steps.meta.outputs.labels }}
           annotations: ${{ steps.meta.outputs.annotations }}
           # Provenance and SBOM are produced below as signed attestations.
           provenance: false
           sbom: false
-      # Gate before signing: an image that fails the scan stays unsigned and the
-      # release job (which needs every image) never runs.
+      # Gate before signing and tagging: an image that fails the scan stays
+      # untagged and unsigned, and the release job (which needs every image)
+      # never runs.
       - name: trivy image scan
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
@@ -237,6 +240,23 @@ jobs:
           subject-name: ${{ steps.name.outputs.ref }}
           subject-digest: ${{ steps.build.outputs.digest }}
           push-to-registry: true
+      # Only now does the image get its release tags. The tags point at the
+      # scanned and signed digest; anything else fails the job.
+      - name: tag the verified digest
+        env:
+          REF: ${{ steps.name.outputs.ref }}
+          DIGEST: ${{ steps.build.outputs.digest }}
+          TAGS: ${{ steps.meta.outputs.tags }}
+        run: |
+          args=()
+          while IFS= read -r tag; do [[ -n "$tag" ]] && args+=(-t "$tag"); done <<<"$TAGS"
+          (( ${#args[@]} > 0 )) || { echo "no release tags"; exit 1; }
+          docker buildx imagetools create "${args[@]}" "$REF@$DIGEST"
+          while IFS= read -r tag; do
+            [[ -n "$tag" ]] || continue
+            got="$(docker buildx imagetools inspect "$tag" --format '{{json .Manifest}}' | jq -r .digest)"
+            [[ "$got" == "$DIGEST" ]] || { echo "$tag -> $got, expected $DIGEST"; exit 1; }
+          done <<<"$TAGS"
 
   release:
     name: GitHub release
